@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The standalone teacher app has its own ESLint config and validation command.
+    "teacher-app/**",
   ]),
 ]);
 

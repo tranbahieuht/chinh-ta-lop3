@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { resolve } from "node:path";
 import { spellingWeeks, badgeCatalog } from "../data/spelling-weeks.ts";
@@ -32,7 +32,9 @@ test("11 XP game payload updates immediately", () => { const next=mergeGameProgr
 test("11b counters and hints update optimistically", () => { const next=mergeGameProgress(fakeProgress,{week:1,weekXP:90,correctCount:6,wrongCount:1,hintsUsed:1,score:100}); const row=next.weekProgress[0]; assert.equal(row.correct_count,6); assert.equal(row.hints_used,1); assert.equal(row.xp_earned,90); });
 test("12 badge game payload is supported by toast UI", () => assert.match(source("components/spelling-chat.tsx"), /Huy hiệu mới/));
 test("13 nine production badges are present", () => assert.equal(badgeCatalog.length,9));
-test("14 leaderboard and teacher failure states are implemented", () => { assert.match(source("components/leaderboard.tsx"), /ErrorState/); assert.match(source("components/teacher-dashboard.tsx"), /ErrorState/); });
+test("14 leaderboard failure state is implemented", () => assert.match(source("components/leaderboard.tsx"), /ErrorState/));
+test("14b student navigation has no teacher or topics link", () => { const navigation=source("components/app-navigation.tsx"); assert.doesNotMatch(navigation, /\/teacher|\/topics/); });
+test("14c teacher, topics and journey detail routes are absent from student app", () => { for (const path of ["app/teacher/page.tsx","app/topics/page.tsx","app/journey/[week]/page.tsx"]) assert.equal(existsSync(resolve(root,path)),false,path); });
 test("15 mobile 360 layout has bottom navigation and compact chat", () => { const css=source("app/globals.css"); assert.match(css, /@media\(max-width:800px\)/); assert.match(css, /\.bottom-nav\{display:grid/); assert.match(css, /\.chat-panel\{height:calc\(100vh - 58px\)/); });
 test("level thresholds match backend helper contract", () => assert.deepEqual(levelBounds(7),{start:1400,end:1750}));
 test("checkpoint and boss weeks are unchanged", () => assert.deepEqual(spellingWeeks.filter(({type})=>type!=="lesson").map(({week,type})=>[week,type]),[[9,"checkpoint"],[18,"boss"],[27,"checkpoint"],[35,"boss"]]));

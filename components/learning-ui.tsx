@@ -21,12 +21,12 @@ const statusIcons: Record<WeekStatus, string> = { completed: "✓", current: "�
 
 export function WeekCard({ item, status, mastery, xp }: { item: SpellingWeek; status: WeekStatus; mastery?: number; xp?: number }) {
   const disabled = status === "locked";
-  const href = disabled ? `/journey/${item.week}` : status === "current" ? `/learn/${item.week}` : `/journey/${item.week}`;
+  const href = disabled ? "/journey" : `/learn/${item.week}`;
   return <article className={`week-card ${status} ${item.type}`}>
     <div className="week-card-top"><span className="week-number">Tuần {item.week}</span><span className="status-pill"><i aria-hidden>{statusIcons[status]}</i>{statusLabels[status]}</span></div>
     <h3>{item.title}</h3><p>{item.topic}</p>
     {(mastery !== undefined || xp !== undefined) && <div className="week-meta">{mastery !== undefined && <span>Mastery <b>{mastery}%</b></span>}{xp !== undefined && <span><b>{xp}</b> XP</span>}</div>}
-    <Link href={href} aria-disabled={disabled} className="card-action">{disabled ? "Xem điều kiện" : status === "current" ? "Tiếp tục" : "Xem tuần"}<span>→</span></Link>
+    <Link href={href} aria-disabled={disabled} className="card-action">{disabled ? "Chưa mở" : status === "current" ? "Tiếp tục" : "Ôn lại"}<span>→</span></Link>
   </article>;
 }
 
@@ -44,8 +44,4 @@ export function ErrorState({ message, retry }: { message: string; retry?: () => 
 
 export function EmptyState({ title, text, href, action }: { title: string; text: string; href: string; action: string }) {
   return <div className="state-card"><span aria-hidden>✦</span><h2>{title}</h2><p>{text}</p><Link className="button primary" href={href}>{action}</Link></div>;
-}
-
-export function TeacherStatCard({ icon, label, value, note }: { icon: string; label: string; value: string | number; note: string }) {
-  return <article className="teacher-stat"><span aria-hidden>{icon}</span><div><small>{label}</small><strong>{value}</strong><p>{note}</p></div></article>;
 }

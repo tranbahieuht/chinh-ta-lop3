@@ -106,7 +106,6 @@ Response c√≥ `fulfillmentText`, `fulfillmentMessages`, custom `payload.game` v·ª
 
 - `GET /api/leaderboard?className=3A&period=weekly|all_time`
 - `GET /api/students/{studentId}/progress`
-- `GET /api/teacher/class-summary?className=3A`
 - `POST /api/dialogflow/webhook`
 - `GET /api/dialogflow/health`
 

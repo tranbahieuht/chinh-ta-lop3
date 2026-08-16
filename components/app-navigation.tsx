@@ -22,7 +22,6 @@ export function AppNavigation() {
       <nav className="desktop-nav" aria-label="Điều hướng chính">
         {primaryLinks.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)) ? "active" : ""}>{item.label}</Link>)}
       </nav>
-      <Link href="/teacher" className={`teacher-link ${pathname.startsWith("/teacher") ? "active" : ""}`}>Dành cho giáo viên</Link>
     </header>
     <nav className="bottom-nav" aria-label="Điều hướng di động">
       {primaryLinks.slice(0, 5).map((item) => <Link key={item.href} href={item.href} className={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)) ? "active" : ""}><span aria-hidden>{item.icon}</span><small>{item.label.replace("Bảng xếp hạng", "Xếp hạng")}</small></Link>)}

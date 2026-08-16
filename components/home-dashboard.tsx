@@ -45,7 +45,7 @@ export function HomeDashboard() {
         <div className="section-heading"><div><p className="eyebrow">Nhiệm vụ tiếp theo</p><h2>Tuần {current.week}: {current.title}</h2></div><span className="week-orb">{current.week}</span></div>
         <p className="topic-line">Trọng tâm <b>{current.topic}</b></p>
         <XPBar totalXP={progress?.totalXP ?? 0} level={progress?.level ?? 1}/>
-        <Link href={`/journey/${current.week}`} className="text-link">Xem chi tiết tuần <span>→</span></Link>
+        <Link href={`/learn/${current.week}`} className="text-link">Vào bài học tuần <span>→</span></Link>
       </article>
       <article className="content-card focus-card">
         <p className="eyebrow">Góc luyện tập</p>

@@ -92,7 +92,7 @@ export function SpellingChat({ week }: { week: SpellingWeek }) {
   return (
     <main className="learn-shell">
       <header className="learn-header">
-        <Link href={`/journey/${week.week}`} className="icon-button" aria-label="Quay lại">←</Link>
+        <Link href="/journey" className="icon-button" aria-label="Quay lại hành trình">←</Link>
         <div><span>Tuần {week.week}</span><b>{week.title}</b></div>
         <Link href="/" className="icon-button" aria-label="Về trang chủ">⌂</Link>
       </header>

@@ -94,29 +94,6 @@ export type LeaderboardEntry = {
   level: number;
 };
 
-export type TeacherStudent = {
-  studentId: string;
-  name: string;
-  currentWeek: number;
-  xp: number;
-  level: number;
-  mastery: number;
-  hints: number;
-  status: "Tốt" | "Cần hỗ trợ" | "Ít hoạt động";
-};
-
-export type TeacherSummary = {
-  numberOfStudents: number;
-  activeStudents: number;
-  averageProgress: number;
-  averageMastery: number;
-  hardestTopics: Array<{ topic: string; mastery: number }>;
-  topXPStudents: Array<{ studentId: string; name: string; xp: number; level: number }>;
-  studentsNeedingSupport: Array<{ studentId: string; studentCode: string; name: string; currentWeek: number }>;
-  progressByWeek?: Array<{ week: number; completed: number }>;
-  students?: TeacherStudent[];
-};
-
 export type ChatReply = {
   success: boolean;
   text?: string;
