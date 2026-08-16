@@ -1,12 +1,22 @@
 import type { Metadata } from "next";
-import "katex/dist/katex.min.css";
+import { AppNavigation } from "@/components/app-navigation";
+import { StudentProvider } from "@/components/student-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Trợ lý học Phân số", template: "%s · Trợ lý học Phân số" },
-  description: "Trợ lý AI thân thiện giúp học sinh lớp 4 tự học phân số từng bước.",
+  metadataBase: new URL("https://chinh-ta-lop3-omega.vercel.app"),
+  title: { default: "Hành trình Chính tả lớp 3", template: "%s · Chính Tả 3" },
+  description: "35 tuần chinh phục tiếng Việt cùng Mít — học chính tả, nhận XP và tiến bộ mỗi ngày.",
+  openGraph: {
+    title: "Hành trình Chính tả lớp 3",
+    description: "35 tuần chinh phục tiếng Việt",
+    type: "website",
+    locale: "vi_VN",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Hành trình Chính tả lớp 3" }],
+  },
+  twitter: { card: "summary_large_image", title: "Hành trình Chính tả lớp 3", description: "35 tuần chinh phục tiếng Việt", images: ["/og.png"] },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="vi"><body>{children}</body></html>;
+  return <html lang="vi"><body><StudentProvider><AppNavigation/><div className="app-main">{children}</div></StudentProvider></body></html>;
 }

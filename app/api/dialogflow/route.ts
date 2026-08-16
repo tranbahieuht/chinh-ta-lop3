@@ -30,6 +30,20 @@ function protobufStructToJson(struct: protos.google.protobuf.IStruct): Record<st
   return Object.fromEntries(Object.entries(struct.fields ?? {}).map(([key, value]) => [key, protobufValueToJson(value)]));
 }
 
+function jsonToProtobufValue(value: unknown): protos.google.protobuf.IValue {
+  if (value === null || value === undefined) return { nullValue: "NULL_VALUE" };
+  if (typeof value === "string") return { stringValue: value };
+  if (typeof value === "number" && Number.isFinite(value)) return { numberValue: value };
+  if (typeof value === "boolean") return { boolValue: value };
+  if (Array.isArray(value)) return { listValue: { values: value.map(jsonToProtobufValue) } };
+  if (typeof value === "object") return { structValue: jsonToProtobufStruct(value as Record<string, unknown>) };
+  return { stringValue: String(value) };
+}
+
+function jsonToProtobufStruct(value: Record<string, unknown>): protos.google.protobuf.IStruct {
+  return { fields: Object.fromEntries(Object.entries(value).map(([key, child]) => [key, jsonToProtobufValue(child)])) };
+}
+
 function collectStrings(value: unknown, keys: Set<string>, result: string[]) {
   if (!value || typeof value !== "object") return;
   for (const [key, child] of Object.entries(value)) {
@@ -97,7 +111,7 @@ function createSessionsClient(projectId: string) {
 
   if (!clientEmail || !privateKey) {
     throw new Error(
-      "Thiếu DIALOGFLOW_CLIENT_EMAIL hoặc DIALOGFLOW_PRIVATE_KEY trong fraction-ai-tutor/.env.local. " +
+      "Thiếu DIALOGFLOW_CLIENT_EMAIL hoặc DIALOGFLOW_PRIVATE_KEY trong .env.local. " +
       "Dialogflow sẽ không sử dụng Application Default Credentials.",
     );
   }
@@ -117,7 +131,7 @@ async function generateGeminiFallback(message: string, metadata: unknown) {
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL,
-    contents: `Bạn là Mít, trợ lý Toán lớp 4. Chỉ trả lời bằng tiếng Việt, ngắn gọn, thân thiện, an toàn và gợi mở. Không làm thay quá sớm. Ngữ cảnh giao diện: ${JSON.stringify(metadata ?? {})}. Học sinh nói: ${message}`,
+    contents: `Bạn là Mít, trợ lý Chính tả tiếng Việt lớp 3. Chỉ trả lời bằng tiếng Việt, ngắn gọn, thân thiện, an toàn và gợi mở. Không tự chấm đúng sai và không tiết lộ đáp án quá sớm. Ngữ cảnh giao diện: ${JSON.stringify(metadata ?? {})}. Học sinh nói: ${message}`,
     config: { temperature: 0.3, maxOutputTokens: 700 },
   });
   if (!response.text?.trim()) throw new Error("Gemini không trả về nội dung.");
@@ -175,7 +189,7 @@ export async function POST(request: Request) {
   const languageCode = typeof body.languageCode === "string" && body.languageCode.trim()
     ? body.languageCode.trim()
     : process.env.DIALOGFLOW_LANGUAGE_CODE || "vi";
-  const safeSessionId = sessionId.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 36) || "fraction-student";
+  const safeSessionId = sessionId.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 36) || "spelling-student";
   let client: SessionsClient;
   try {
     client = createSessionsClient(projectId);
@@ -192,14 +206,21 @@ export async function POST(request: Request) {
     const queryInput = event
       ? { event: { name: event, languageCode } }
       : { text: { text: message, languageCode } };
-    const [response] = await client.detectIntent({ session, queryInput });
+    const metadata = body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
+      ? body.metadata as Record<string, unknown>
+      : {};
+    const [response] = await client.detectIntent({
+      session,
+      queryInput,
+      queryParams: { payload: jsonToProtobufStruct(metadata) },
+    });
     const queryResult = response.queryResult;
     if (!queryResult) throw new Error("Dialogflow không trả về queryResult.");
 
     const detectedIntentName = queryResult.intent?.displayName ?? "unknown";
     console.info("[api/dialogflow] DetectIntent result:", {
       intentDisplayName: detectedIntentName,
-      fulfillmentText: queryResult.fulfillmentText ?? "",
+      fulfillmentTextLength: queryResult.fulfillmentText?.length ?? 0,
     });
     if (queryResult.intent?.displayName && !queryResult.fulfillmentText?.trim()) {
       console.warn("[api/dialogflow] Intent matched with empty fulfillmentText:", queryResult.intent.displayName);

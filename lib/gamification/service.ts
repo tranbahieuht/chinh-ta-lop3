@@ -91,7 +91,11 @@ async function findStudent(studentReference: string): Promise<StudentRow | null>
   const db = getSupabaseAdmin();
   const reference = safeIdentifier(studentReference);
   let query = db.from("students").select("*");
-  query = isUuid(studentReference) ? query.eq("id", studentReference) : query.eq("student_code", reference);
+  // Guest student codes are UUIDs too, so a UUID reference may be either the
+  // database primary key or the durable browser student_code.
+  query = isUuid(studentReference)
+    ? query.or(`id.eq.${studentReference},student_code.eq.${reference}`)
+    : query.eq("student_code", reference);
   const { data, error } = await query.maybeSingle();
   if (error) throw databaseError(`find student: ${error.message}`);
   return data as StudentRow | null;
@@ -194,6 +198,31 @@ export async function getTeacherClassSummary(className: string) {
   const supportIds = new Set(mastery.filter((row) => Number(row.mastery_score) < 65 || Number(row.hints_used) + Number(row.wrong_answers) >= Math.max(3, Number(row.total_questions) / 2)).map((row) => row.student_id));
   for (const row of progress) if (Number(row.wrong_count) + Number(row.hints_used) >= 5) supportIds.add(row.student_id);
   const completedCount = progress.filter((row) => row.status === "completed").length;
+  const masteryByStudent = new Map<string, number[]>();
+  const hintsByStudent = new Map<string, number>();
+  for (const row of mastery) {
+    masteryByStudent.set(row.student_id, [...(masteryByStudent.get(row.student_id) ?? []), Number(row.mastery_score)]);
+    hintsByStudent.set(row.student_id, (hintsByStudent.get(row.student_id) ?? 0) + Number(row.hints_used));
+  }
+  const progressByWeek = Array.from({ length: 35 }, (_, index) => ({
+    week: index + 1,
+    completed: progress.filter((row) => row.week === index + 1 && row.status === "completed").length,
+  }));
+  const studentSummaries = rows.map((student) => {
+    const scores = masteryByStudent.get(student.id) ?? [];
+    const average = scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0;
+    const inactive = !student.last_activity_at || new Date(student.last_activity_at).getTime() < activeCutoff;
+    return {
+      studentId: student.id,
+      name: student.display_name,
+      currentWeek: student.current_week,
+      xp: student.total_xp,
+      level: student.level,
+      mastery: average,
+      hints: hintsByStudent.get(student.id) ?? 0,
+      status: inactive ? "Ít hoạt động" : supportIds.has(student.id) ? "Cần hỗ trợ" : "Tốt",
+    };
+  });
   return {
     numberOfStudents: rows.length,
     activeStudents: rows.filter((row) => row.last_activity_at && new Date(row.last_activity_at).getTime() >= activeCutoff).length,
@@ -204,10 +233,27 @@ export async function getTeacherClassSummary(className: string) {
       .map((row) => ({ studentId: row.id, name: row.display_name, xp: row.total_xp, level: row.level })),
     studentsNeedingSupport: rows.filter((row) => supportIds.has(row.id))
       .map((row) => ({ studentId: row.id, studentCode: row.student_code, name: row.display_name, currentWeek: row.current_week })),
+    progressByWeek,
+    students: studentSummaries,
   };
 }
 
 export async function getStudentBadges(studentReference: string) {
   const progress = await getStudentProgress(studentReference);
   return progress ? progress.badges : null;
+}
+
+export async function createOrUpdateStudent(input: { studentCode: string; displayName: string; className: string }) {
+  const studentCode = safeIdentifier(input.studentCode, "");
+  const displayName = safeText(input.displayName, "Học sinh", 80);
+  const className = safeText(input.className, "Chưa xếp lớp", 40);
+  if (!studentCode) throw new Error("studentCode không hợp lệ.");
+  const db = getSupabaseAdmin();
+  const { data, error } = await db.from("students").upsert({
+    student_code: studentCode,
+    display_name: displayName,
+    class_name: className,
+  }, { onConflict: "student_code" }).select("id,student_code,display_name,class_name,total_xp,level,current_week,streak").single();
+  if (error) throw databaseError(`create student: ${error.message}`);
+  return data;
 }

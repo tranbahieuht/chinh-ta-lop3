@@ -14,6 +14,7 @@
     "test:webhook": "node --experimental-strip-types tests/dialogflow-webhook.test.ts",
     "test:ai": "node --conditions=react-server --experimental-strip-types tests/spelling-ai.test.ts",
     "test:gamification": "node --experimental-strip-types tests/gamification.test.ts",
+    "test:frontend": "node --test --experimental-strip-types tests/spelling-frontend.test.ts",
     "test:db": "node --conditions=react-server --experimental-strip-types scripts/test-database.ts",
     "test:chinta-production": "node --conditions=react-server --experimental-strip-types scripts/test-chinta-production.ts",
     "seed:demo": "node --experimental-strip-types scripts/seed-demo.ts"
