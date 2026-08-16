@@ -80,5 +80,6 @@ export async function POST(request: Request) {
     game: findGame(payloads),
     contexts: Array.isArray(queryResult.outputContexts) ? queryResult.outputContexts : [],
     error: typeof result.error === "string" ? result.error : undefined,
+    diagnostic: typeof result.diagnostic === "string" ? result.diagnostic : undefined,
   }, { status: response.status });
 }

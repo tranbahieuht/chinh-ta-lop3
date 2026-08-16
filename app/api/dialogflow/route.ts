@@ -175,6 +175,7 @@ export async function POST(request: Request) {
       success: false,
       error: error.code,
       message: dialogflowPublicMessage(error.code),
+      diagnostic: error.diagnostic,
     }, { status: 503 });
   }
 
@@ -231,6 +232,7 @@ export async function POST(request: Request) {
       success: false,
       error: error.code,
       message: dialogflowPublicMessage(error.code),
+      diagnostic: error.diagnostic,
     }, { status: 503 });
   }
 }

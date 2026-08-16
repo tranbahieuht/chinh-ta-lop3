@@ -9,13 +9,16 @@ export const DIALOGFLOW_ERROR_CODES = {
 } as const;
 
 export type DialogflowErrorCode = typeof DIALOGFLOW_ERROR_CODES[keyof typeof DIALOGFLOW_ERROR_CODES];
+export type DialogflowDiagnostic = "MALFORMED_CREDENTIALS" | "UNAUTHENTICATED" | "PERMISSION_DENIED";
 
 export class DialogflowServiceError extends Error {
   readonly code: DialogflowErrorCode;
+  readonly diagnostic?: DialogflowDiagnostic;
 
-  constructor(code: DialogflowErrorCode, message: string) {
+  constructor(code: DialogflowErrorCode, message: string, diagnostic?: DialogflowDiagnostic) {
     super(message);
     this.code = code;
+    this.diagnostic = diagnostic;
     this.name = "DialogflowServiceError";
   }
 }
@@ -35,6 +38,22 @@ export type DialogflowConfig = {
 
 let cachedClient: SessionsClient | undefined;
 
+function withoutWrappingQuotes(value: string) {
+  const trimmed = value.trim();
+  const first = trimmed.at(0);
+  return trimmed.length >= 2 && (first === '"' || first === "'") && trimmed.at(-1) === first
+    ? trimmed.slice(1, -1).trim()
+    : trimmed;
+}
+
+function normalizePrivateKey(value: string) {
+  return withoutWrappingQuotes(value)
+    .replace(/\\+r\\+n/g, "\n")
+    .replace(/\\+n/g, "\n")
+    .replace(/\\+r/g, "\r")
+    .trim();
+}
+
 export function hasDialogflowEnvironment(env: DialogflowEnvironment = process.env) {
   return Boolean(
     env.DIALOGFLOW_PROJECT_ID?.trim()
@@ -44,9 +63,9 @@ export function hasDialogflowEnvironment(env: DialogflowEnvironment = process.en
 }
 
 export function getDialogflowConfig(env: DialogflowEnvironment = process.env): DialogflowConfig {
-  const projectId = env.DIALOGFLOW_PROJECT_ID?.trim();
-  const clientEmail = env.GOOGLE_CLIENT_EMAIL?.trim();
-  const privateKey = env.GOOGLE_PRIVATE_KEY?.trim().replace(/\\n/g, "\n");
+  const projectId = env.DIALOGFLOW_PROJECT_ID ? withoutWrappingQuotes(env.DIALOGFLOW_PROJECT_ID) : "";
+  const clientEmail = env.GOOGLE_CLIENT_EMAIL ? withoutWrappingQuotes(env.GOOGLE_CLIENT_EMAIL) : "";
+  const privateKey = env.GOOGLE_PRIVATE_KEY ? normalizePrivateKey(env.GOOGLE_PRIVATE_KEY) : "";
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new DialogflowServiceError(
@@ -62,6 +81,7 @@ export function getDialogflowConfig(env: DialogflowEnvironment = process.env): D
     throw new DialogflowServiceError(
       DIALOGFLOW_ERROR_CODES.authFailed,
       "Thông tin xác thực Dialogflow không hợp lệ.",
+      "MALFORMED_CREDENTIALS",
     );
   }
   return { projectId, clientEmail, privateKey };
@@ -80,11 +100,15 @@ export function getDialogflowClient(): SessionsClient {
   return cachedClient;
 }
 
-function isAuthenticationError(reason: unknown) {
-  if (!reason || typeof reason !== "object") return false;
+function authenticationDiagnostic(reason: unknown): DialogflowDiagnostic | undefined {
+  if (!reason || typeof reason !== "object") return undefined;
   const error = reason as { code?: unknown; message?: unknown };
-  if (error.code === 7 || error.code === 16 || error.code === "PERMISSION_DENIED" || error.code === "UNAUTHENTICATED") return true;
-  return typeof error.message === "string" && /auth|credential|invalid[_ ]grant|permission denied|private key/i.test(error.message);
+  if (error.code === 7 || error.code === "PERMISSION_DENIED") return "PERMISSION_DENIED";
+  if (error.code === 16 || error.code === "UNAUTHENTICATED") return "UNAUTHENTICATED";
+  if (typeof error.message !== "string") return undefined;
+  if (/permission denied/i.test(error.message)) return "PERMISSION_DENIED";
+  if (/auth|credential|invalid[_ ]grant|private key/i.test(error.message)) return "UNAUTHENTICATED";
+  return undefined;
 }
 
 export async function executeDetectIntent(
@@ -101,10 +125,12 @@ export async function executeDetectIntent(
     return queryResult;
   } catch (reason) {
     if (reason instanceof DialogflowServiceError) throw reason;
-    if (isAuthenticationError(reason)) {
+    const diagnostic = authenticationDiagnostic(reason);
+    if (diagnostic) {
       throw new DialogflowServiceError(
         DIALOGFLOW_ERROR_CODES.authFailed,
         "Không xác thực được với Dialogflow.",
+        diagnostic,
       );
     }
     throw new DialogflowServiceError(

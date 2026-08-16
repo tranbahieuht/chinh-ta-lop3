@@ -117,4 +117,5 @@ export type ChatReply = {
   game?: GamePayload;
   contexts?: unknown[];
   error?: string;
+  diagnostic?: string;
 };

@@ -34,6 +34,17 @@ test("valid config reads exact production variables and restores escaped newline
   assert.equal(hasDialogflowEnvironment(validEnv), true);
 });
 
+test("config accepts JSON-copied quotes and repeated newline escaping", () => {
+  const config = getDialogflowConfig({
+    DIALOGFLOW_PROJECT_ID: '"chinh-ta-agent-project"',
+    GOOGLE_CLIENT_EMAIL: '"dialogflow-web@example.iam.gserviceaccount.com"',
+    GOOGLE_PRIVATE_KEY: '"-----BEGIN PRIVATE KEY-----\\\\nTEST_KEY\\\\n-----END PRIVATE KEY-----\\\\n"',
+  });
+  assert.equal(config.projectId, "chinh-ta-agent-project");
+  assert.equal(config.clientEmail, "dialogflow-web@example.iam.gserviceaccount.com");
+  assert.equal(config.privateKey, "-----BEGIN PRIVATE KEY-----\nTEST_KEY\n-----END PRIVATE KEY-----");
+});
+
 test("detectIntent success returns queryResult", async () => {
   const expected = { fulfillmentText: "Chào em!" };
   assert.equal(await executeDetectIntent(async () => expected), expected);
@@ -42,7 +53,7 @@ test("detectIntent success returns queryResult", async () => {
 test("authentication failure is classified without exposing credentials", async () => {
   await assert.rejects(
     executeDetectIntent(async () => { throw Object.assign(new Error("invalid credential"), { code: 16 }); }),
-    (reason) => reason instanceof DialogflowServiceError && reason.code === DIALOGFLOW_ERROR_CODES.authFailed && !reason.message.includes("TEST_KEY"),
+    (reason) => reason instanceof DialogflowServiceError && reason.code === DIALOGFLOW_ERROR_CODES.authFailed && reason.diagnostic === "UNAUTHENTICATED" && !reason.message.includes("TEST_KEY"),
   );
 });
 
