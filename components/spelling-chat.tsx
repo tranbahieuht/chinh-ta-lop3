@@ -50,7 +50,7 @@ export function SpellingChat({ week }: { week: SpellingWeek }) {
         body: JSON.stringify({ studentId: identity.studentCode, sessionId, message: clean, week: week.week, displayName: identity.displayName, className: identity.className }),
       });
       const reply = await response.json() as ChatReply;
-      if (!response.ok || !reply.success) throw new Error(reply.error || "Mít chưa nghe rõ. Em thử lại nhé!");
+      if (!response.ok || !reply.success) throw new Error(reply.message || "Mít chưa nghe rõ. Em thử lại nhé!");
       const message = reply.message?.trim() || "Mình tiếp tục nhé!";
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: "bot", text: message }]);
       setSuggestions(reply.quickReplies || reply.suggestions || []);

@@ -116,9 +116,28 @@ GEMINI_TIMEOUT_MS=4500
 # Dialogflow
 DIALOGFLOW_PROJECT_ID=
 DIALOGFLOW_WEBHOOK_SECRET=
+GOOGLE_CLIENT_EMAIL=
+GOOGLE_PRIVATE_KEY=
+DIALOGFLOW_LANGUAGE_CODE=vi
 ```
 
-Nếu route web hiện tại gọi Dialogflow DetectIntent trực tiếp, thêm `DIALOGFLOW_CLIENT_EMAIL`, `DIALOGFLOW_PRIVATE_KEY` và `DIALOGFLOW_LANGUAGE_CODE=vi`. Webhook Chính tả không cần ba biến này.
+Ba biến `DIALOGFLOW_PROJECT_ID`, `GOOGLE_CLIENT_EMAIL` và `GOOGLE_PRIVATE_KEY` là bắt buộc để frontend gọi Dialogflow DetectIntent. Webhook Chính tả không dùng private key này.
+
+### Credential DetectIntent trên Vercel
+
+1. Trong Google Cloud Console, chọn đúng project đang chứa Dialogflow ES agent và bảo đảm **Dialogflow API** đã được bật.
+2. Vào **IAM & Admin → Service Accounts**, tạo một service account riêng cho frontend, ví dụ `chinh-ta-web-detect-intent`.
+3. Gán duy nhất role **Dialogflow API Client** (`roles/dialogflow.client`) ở project chứa agent. Role này có quyền `dialogflow.sessions.detectIntent`; không cần Owner hoặc Editor.
+4. Mở service account → **Keys → Add key → Create new key → JSON**. File JSON chỉ tải được lúc tạo; giữ file ở nơi an toàn và không commit.
+5. Từ file JSON, tạo Vercel Production Environment Variables:
+   - `project_id` → `DIALOGFLOW_PROJECT_ID`
+   - `client_email` → `GOOGLE_CLIENT_EMAIL`
+   - `private_key` → `GOOGLE_PRIVATE_KEY`
+   - đặt thêm `DIALOGFLOW_LANGUAGE_CODE=vi`
+6. Có thể dán private key dạng nhiều dòng hoặc dạng có ký tự `\\n`; server tự chuyển `\\n` thành newline thật. Không thêm dấu nháy bao quanh giá trị trên Vercel.
+7. Redeploy Production sau khi lưu ENV. Deployment đang chạy không tự nhận biến mới.
+
+Không gửi file JSON hoặc private key qua chat/email. Sau khi deploy, `/api/dialogflow/health` phải trả `dialogflowConfigured: true`; một request học thật qua `/api/chat` mới xác nhận thêm quyền IAM và khả năng kết nối.
 
 Không đặt `DATABASE_TEST_MODE` hoặc `CHINHTA_BASE_URL` trong runtime production; đây là biến của script chạy local/CI. Thay đổi environment variables chỉ có hiệu lực với deployment mới, nên redeploy sau khi cập nhật. Xem [Vercel Environment Variables](https://vercel.com/docs/environment-variables).
 

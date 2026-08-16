@@ -22,7 +22,7 @@ export function AssistantRoom() {
     try {
       const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: identity.studentCode, sessionId, message: text.trim(), week: progress?.currentWeek ?? 1, displayName: identity.displayName, className: identity.className, metadata: { mode: "assistant" } }) });
       const reply = await response.json() as ChatReply;
-      if (!response.ok || !reply.success) throw new Error(reply.error || "Mít chưa trả lời được.");
+      if (!response.ok || !reply.success) throw new Error(reply.message || "Mít chưa trả lời được.");
       setMessages((rows) => [...rows, { role: "bot", text: reply.message || "Em thử hỏi theo cách khác nhé." }]);
       if (reply.game) { applyGamePayload(reply.game); await refreshProgress(); }
       window.setTimeout(() => end.current?.scrollIntoView({ behavior: "smooth" }), 50);

@@ -1,6 +1,13 @@
-import { SessionsClient, protos } from "@google-cloud/dialogflow";
+import { protos } from "@google-cloud/dialogflow";
 import { GoogleGenAI } from "@google/genai";
 import { GEMINI_MODEL } from "../../../lib/ai/config.ts";
+import {
+  dialogflowPublicMessage,
+  executeDetectIntent,
+  getDialogflowClient,
+  getDialogflowConfig,
+  normalizeDialogflowError,
+} from "../../../lib/dialogflow/client.ts";
 
 type DialogflowBody = {
   message?: unknown;
@@ -96,35 +103,6 @@ export function extractDialogflowContent(queryResult: protos.google.cloud.dialog
   return { message, suggestions: [...new Set(suggestions)], payloads };
 }
 
-function createSessionsClient(projectId: string) {
-  const clientEmail = process.env.DIALOGFLOW_CLIENT_EMAIL?.trim();
-  const privateKey = process.env.DIALOGFLOW_PRIVATE_KEY?.trim().replace(/\\n/g, "\n");
-  const credentialState = {
-    projectIdConfigured: Boolean(projectId),
-    clientEmailConfigured: Boolean(clientEmail),
-    clientEmailLength: clientEmail?.length ?? 0,
-    privateKeyConfigured: Boolean(privateKey),
-    privateKeyLength: privateKey?.length ?? 0,
-    privateKeyHasPemHeader: privateKey?.includes("-----BEGIN PRIVATE KEY-----") ?? false,
-  };
-  console.info("[api/dialogflow] Credential configuration:", credentialState);
-
-  if (!clientEmail || !privateKey) {
-    throw new Error(
-      "Thiếu DIALOGFLOW_CLIENT_EMAIL hoặc DIALOGFLOW_PRIVATE_KEY trong .env.local. " +
-      "Dialogflow sẽ không sử dụng Application Default Credentials.",
-    );
-  }
-  if (!credentialState.privateKeyHasPemHeader) {
-    throw new Error("DIALOGFLOW_PRIVATE_KEY không đúng định dạng PEM service-account private key.");
-  }
-
-  return new SessionsClient({
-    projectId,
-    credentials: { client_email: clientEmail, private_key: privateKey },
-  });
-}
-
 async function generateGeminiFallback(message: string, metadata: unknown) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY chưa được cấu hình.");
@@ -181,23 +159,22 @@ export async function POST(request: Request) {
     return Response.json({ success: false, error: "message hoặc event và sessionId là bắt buộc." }, { status: 400 });
   }
 
-  const projectId = process.env.DIALOGFLOW_PROJECT_ID;
-  if (!projectId) {
-    return Response.json({ success: false, error: "Dialogflow chưa được cấu hình trên máy chủ." }, { status: 503 });
-  }
-
   const languageCode = typeof body.languageCode === "string" && body.languageCode.trim()
     ? body.languageCode.trim()
     : process.env.DIALOGFLOW_LANGUAGE_CODE || "vi";
   const safeSessionId = sessionId.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 36) || "spelling-student";
-  let client: SessionsClient;
+  let client;
+  let projectId: string;
   try {
-    client = createSessionsClient(projectId);
-  } catch (error) {
-    console.error("[api/dialogflow] Credential validation failed:", error);
+    projectId = getDialogflowConfig().projectId;
+    client = getDialogflowClient();
+  } catch (reason) {
+    const error = normalizeDialogflowError(reason);
+    console.error("[api/dialogflow] configuration failure", { code: error.code });
     return Response.json({
       success: false,
-      error: error instanceof Error ? error.message : "Cấu hình Dialogflow không hợp lệ.",
+      error: error.code,
+      message: dialogflowPublicMessage(error.code),
     }, { status: 503 });
   }
 
@@ -209,13 +186,14 @@ export async function POST(request: Request) {
     const metadata = body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
       ? body.metadata as Record<string, unknown>
       : {};
-    const [response] = await client.detectIntent({
-      session,
-      queryInput,
-      queryParams: { payload: jsonToProtobufStruct(metadata) },
+    const queryResult = await executeDetectIntent(async () => {
+      const [response] = await client.detectIntent({
+        session,
+        queryInput,
+        queryParams: { payload: jsonToProtobufStruct(metadata) },
+      });
+      return response.queryResult;
     });
-    const queryResult = response.queryResult;
-    if (!queryResult) throw new Error("Dialogflow không trả về queryResult.");
 
     const detectedIntentName = queryResult.intent?.displayName ?? "unknown";
     console.info("[api/dialogflow] DetectIntent result:", {
@@ -246,13 +224,13 @@ export async function POST(request: Request) {
         fulfillmentMessages: asJson(queryResult.fulfillmentMessages),
       },
     });
-  } catch (error) {
-    console.error("[api/dialogflow] DetectIntent failed:", error);
+  } catch (reason) {
+    const error = normalizeDialogflowError(reason);
+    console.error("[api/dialogflow] DetectIntent failed", { code: error.code });
     return Response.json({
       success: false,
-      error: "Mít chưa kết nối được với Dialogflow. Em vui lòng thử lại.",
+      error: error.code,
+      message: dialogflowPublicMessage(error.code),
     }, { status: 503 });
-  } finally {
-    await client.close().catch(() => undefined);
   }
 }

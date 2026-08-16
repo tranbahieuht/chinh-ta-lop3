@@ -12,7 +12,7 @@ function result(intentName: string, fulfillmentText: string, payload?: Record<st
   };
 }
 
-const normal = await resolveDetectedResponse(result("Lesson - Fractions", "Nội dung từ Dialogflow"), "phân số", {}, async () => {
+const normal = await resolveDetectedResponse(result("W01_Theory", "Nội dung từ Dialogflow"), "học tuần 1", {}, async () => {
   throw new Error("Gemini must not run");
 });
 assert.equal(normal.source, "dialogflow");

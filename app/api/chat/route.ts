@@ -1,5 +1,5 @@
-import { POST as detectDialogflowIntent } from "@/app/api/dialogflow/route";
-import { safeInteger, safeText } from "@/lib/security/input";
+import { POST as detectDialogflowIntent } from "../dialogflow/route.ts";
+import { safeInteger, safeText } from "../../../lib/security/input.ts";
 
 export const runtime = "nodejs";
 

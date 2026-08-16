@@ -151,6 +151,9 @@ GEMINI_MODEL=gemini-flash-latest
 GEMINI_TIMEOUT_MS=4500
 DIALOGFLOW_WEBHOOK_SECRET=
 DIALOGFLOW_PROJECT_ID=
+GOOGLE_CLIENT_EMAIL=
+GOOGLE_PRIVATE_KEY=
+DIALOGFLOW_LANGUAGE_CODE=vi
 ```
 
 Không đưa service-role key hoặc khóa Gemini xuống component client. Nếu `GEMINI_API_KEY` trống, các hàm AI trả phản hồi dự phòng; database/gamification vẫn hoạt động.
