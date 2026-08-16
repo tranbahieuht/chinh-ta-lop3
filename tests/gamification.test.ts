@@ -15,6 +15,7 @@ assert.equal(duplicate.xpEarned, 0);
 assert.equal(duplicate.totalXP, 10, "3. duplicate không cộng XP");
 
 const withHint = new InMemoryGamificationEngine();
+withHint.recordHint({ eventId: "hint-used", studentCode: "HS001", week: 1, questionId: "W01_Q01", topic: "c / k", hintLevel: 1, difficulty: "basic" });
 withHint.recordAnswer({ ...base, eventId: "hint-event", hintLevel: 1 });
 assert.equal(withHint.completeWeek({ eventId: "complete-hint", studentCode: "HS001", week: 1, topic: "c / k" }).xpEarned, 30, "4. hoàn thành tuần +30");
 assert.equal(engine.completeWeek({ eventId: "complete-no-hint", studentCode: "HS001", week: 1, topic: "c / k" }).xpEarned, 50, "5. no-hint bonus +20");

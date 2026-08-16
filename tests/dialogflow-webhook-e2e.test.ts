@@ -55,30 +55,40 @@ assert.equal(bGame.duplicate, true);
 assert.equal(bGame.xpEarned, 0);
 results.push({ scenario: "B retry cùng eventId", result: "+0 XP, duplicate" });
 
-const c = parseDialogflowWebhook(dialogflowBody("W01_Q02_Wrong", { eventId: "aj-answer-2-wrong", queryText: "kéo", attempt: 1 }));
+const c = parseDialogflowWebhook(dialogflowBody("W01_Q02_Wrong", { eventId: "aj-answer-2-wrong", queryText: "mất tinh", attempt: 1 }));
 const cGame = engine.recordAnswer(c.answerEvent!);
 assert.equal(c.correct, false);
 assert.equal(cGame.xpEarned, 0);
 results.push({ scenario: "C W01_Q02_Wrong", result: "+0 XP" });
 
-const d = parseDialogflowWebhook(dialogflowBody("W01_Q02_Correct", { eventId: "aj-answer-2-correct", queryText: "cái kéo", attempt: 2 }));
+const d = parseDialogflowWebhook(dialogflowBody("W01_Q02_Correct", { eventId: "aj-answer-2-correct", queryText: "kính mắt", attempt: 2 }));
 const dGame = engine.recordAnswer(d.answerEvent!);
 assert.equal(dGame.xpEarned, 8);
 results.push({ scenario: "D đúng sau retry", result: "+8 XP" });
 
-const e = parseDialogflowWebhook(dialogflowBody("W01_Q03_Correct", { eventId: "aj-answer-3", queryText: "kẹo", hintLevel: 2 }));
+const eHint = parseDialogflowWebhook({
+  ...dialogflowBody("W01_Hint_2", { eventId: "aj-hint-2", queryText: "gợi ý", hintLevel: 2, action: "HINT_USED" }),
+  queryResult: {
+    ...dialogflowBody("W01_Hint_2", { eventId: "aj-hint-2", queryText: "gợi ý", hintLevel: 2, action: "HINT_USED" }).queryResult,
+    outputContexts: [{ name: "projects/local/agent/sessions/webhook-simulation/contexts/week01_question03",
+      parameters: { studentId: "HS-AJ-001", displayName: "An", className: "3A",
+        week: 1, topic: "c / k", hintLevel: 2, difficulty: "basic" } }],
+  },
+});
+engine.recordHint(eHint.hintEvent!);
+const e = parseDialogflowWebhook(dialogflowBody("W01_Q03_Correct", { eventId: "aj-answer-3", queryText: "cái cân", hintLevel: 2 }));
 const eGame = engine.recordAnswer(e.answerEvent!);
 assert.equal(eGame.xpEarned, 5);
 results.push({ scenario: "E đúng với Hint 2", result: "+5 XP" });
 
-const f = parseDialogflowWebhook(dialogflowBody("W01_Complete", { eventId: "aj-week-1" }));
+const f = parseDialogflowWebhook(dialogflowBody("W01_Q09_Correct", { eventId: "aj-week-1", queryText: "kể chuyện" }));
 assert.equal(f.eventType, "WEEK_COMPLETE");
 assert.ok(f.weekCompleteEvent);
 const fGame = engine.completeWeek(f.weekCompleteEvent);
 assert.equal(fGame.xpEarned, 30);
 results.push({ scenario: "F W01_Complete", result: "+30 XP" });
 
-const g = parseDialogflowWebhook(dialogflowBody("W01_Complete", { eventId: "aj-week-1" }));
+const g = parseDialogflowWebhook(dialogflowBody("W01_Q09_Correct", { eventId: "aj-week-1", queryText: "kể chuyện" }));
 const gGame = engine.completeWeek(g.weekCompleteEvent!);
 assert.equal(gGame.duplicate, true);
 assert.equal(gGame.xpEarned, 0);
@@ -95,8 +105,13 @@ assert.equal((hResponse.outputContexts?.[0]?.name ?? "").endsWith("/contexts/wee
 results.push({ scenario: "H Global_Progress", result: "GET_PROGRESS + giữ context" });
 
 assert.deepEqual(parseIntentName("W05_SUPPORT_Q02_Correct"), {
-  week: 5, questionId: "SUPPORT_Q02", result: "correct", support: true, eventType: "ANSWER_RESULT",
+  week: 5, questionId: "W05_SUPPORT_Q02", result: "correct", support: true, eventType: "ANSWER_RESULT",
 });
+
+const falsePositive = parseDialogflowWebhook(dialogflowBody("W01_Q02_Correct", { eventId: "bad-answer", queryText: "mất tinh" }));
+assert.equal(falsePositive.correct, false);
+assert.equal(falsePositive.eventType, "ANSWER_RESULT");
+results.push({ scenario: "K backend authority", result: "mất tinh bị chấm sai" });
 const i = await explainRule({ week: 1, topic: "c / k", rule: "c / k", studentQuestion: "Khi nào viết k?" }, {
   generate: async () => JSON.stringify({
     explanation: "Trước e, ê, i, em thường viết k.",

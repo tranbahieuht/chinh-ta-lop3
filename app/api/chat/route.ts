@@ -18,6 +18,10 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+function diagnosticId(value: string) {
+  return value.length > 10 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value;
+}
+
 function findGame(value: unknown): Record<string, unknown> | undefined {
   if (Array.isArray(value)) {
     for (const child of value) {
@@ -50,6 +54,9 @@ export async function POST(request: Request) {
   if (!studentId || !sessionId || (!message && !event)) {
     return Response.json({ success: false, error: "studentId, sessionId và message hoặc event là bắt buộc." }, { status: 400 });
   }
+  if (process.env.NODE_ENV !== "production") {
+    console.info("[chinh-ta/identity]", { frontendStudentId: diagnosticId(studentId), sessionId: diagnosticId(sessionId) });
+  }
   const extraMetadata = record(body.metadata);
   const dialogflowRequest = new Request(request.url, {
     method: "POST",
@@ -71,13 +78,17 @@ export async function POST(request: Request) {
   const response = await detectDialogflowIntent(dialogflowRequest);
   const result = await response.json() as Record<string, unknown>;
   const payloads = Array.isArray(result.payloads) ? result.payloads : [];
+  const game = findGame(payloads);
   const queryResult = record(result.queryResult);
+  const text = typeof result.message === "string" ? result.message : undefined;
   return Response.json({
     success: result.success === true,
-    message: typeof result.message === "string" ? result.message : undefined,
+    text,
+    message: text,
     quickReplies: Array.isArray(result.suggestions) ? result.suggestions : [],
     payloads,
-    game: findGame(payloads),
+    game,
+    progressChanged: Boolean(game),
     contexts: Array.isArray(queryResult.outputContexts) ? queryResult.outputContexts : [],
     error: typeof result.error === "string" ? result.error : undefined,
     diagnostic: typeof result.diagnostic === "string" ? result.diagnostic : undefined,

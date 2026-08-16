@@ -1,9 +1,10 @@
 import { ALLOWED_DIFFICULTIES, MISTAKE_TYPES, type AIDifficulty, type MistakeType } from "@/lib/ai/config";
 import { analyzeMistake, createSimilarQuestion, explainRule, feedbackAnswer } from "@/lib/ai/spelling-ai";
 import { backendStateContext, buildDialogflowResponse } from "@/lib/dialogflow/response";
+import { getQuestionDefinition } from "@/lib/dialogflow/answer-validator";
 import { parseDialogflowRequest, normalizeDialogflowEvent, type NormalizedDialogflowEvent } from "@/lib/dialogflow/webhook";
 import {
-  completeWeekEvent, getLeaderboard, getStudentBadges, getStudentProgress, recordAnswerEvent,
+  completeWeekEvent, getLeaderboard, getStudentBadges, getStudentProgress, recordAnswerEvent, recordHintEvent,
 } from "@/lib/gamification/service";
 import { safeBoolean, safeInteger } from "@/lib/security/input";
 
@@ -36,6 +37,10 @@ function verifyWebhookSecret(request: Request): boolean {
   return !expected || request.headers.get("x-dialogflow-webhook-secret") === expected;
 }
 
+function diagnosticId(value: string) {
+  return value.length > 10 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value;
+}
+
 function answerText(event: NormalizedDialogflowEvent, xpEarned: number, totalXP: number, level: number, duplicate: boolean) {
   if (duplicate) return "Kết quả này đã được ghi nhận trước đó nên XP không bị cộng lại.";
   if (!event.correct) return "Chưa đúng rồi 🌱 Em nhìn lại quy tắc hoặc xin gợi ý rồi thử lại nhé.";
@@ -45,6 +50,73 @@ function answerText(event: NormalizedDialogflowEvent, xpEarned: number, totalXP:
 
 function supportRecommended(event: NormalizedDialogflowEvent, mastery: number) {
   return !event.correct || event.hintLevel >= 2 || event.attempt >= 3 || mastery < 65;
+}
+
+function activeQuestionPrompt(event: NormalizedDialogflowEvent): string {
+  const technicalPayload = event.metadata.payload && typeof event.metadata.payload === "object"
+    ? event.metadata.payload as Record<string, unknown> : {};
+  const nextQuestion = technicalPayload.nextQuestion && typeof technicalPayload.nextQuestion === "object"
+    ? technicalPayload.nextQuestion as Record<string, unknown> : {};
+  if (typeof nextQuestion.prompt === "string" && nextQuestion.prompt.trim()) return nextQuestion.prompt.trim();
+  for (const context of event.outputContexts) {
+    if (typeof context.name !== "string" || !context.name.endsWith(`/contexts/week${String(event.week).padStart(2, "0")}_active`)) continue;
+    const questionId = typeof context.parameters?.questionId === "string" ? context.parameters.questionId : "";
+    const prompt = typeof context.parameters?.prompt === "string" ? context.parameters.prompt : "";
+    if (questionId && questionId !== event.questionId && prompt && !prompt.startsWith("#")) return prompt;
+  }
+  return "";
+}
+
+function gamePayload(event: NormalizedDialogflowEvent, game: Awaited<ReturnType<typeof recordAnswerEvent>>) {
+  return {
+    studentCode: event.studentId,
+    week: game.week ?? event.week,
+    questionId: event.questionId,
+    topic: event.topic,
+    xpEarned: game.xpEarned,
+    weekXP: game.weekXP,
+    totalXP: game.totalXP,
+    level: game.level,
+    mastery: game.mastery,
+    streak: game.streak,
+    correctCount: game.correctCount,
+    wrongCount: game.wrongCount,
+    hintsUsed: game.hintsUsed,
+    score: game.score,
+    newBadges: game.newBadges,
+    duplicate: game.duplicate,
+  };
+}
+
+function rejectedCorrectContexts(event: NormalizedDialogflowEvent) {
+  if (event.metadata.intentResult !== "correct") return [];
+  const question = getQuestionDefinition(event.questionId);
+  if (!question) return [];
+  const prefix = `${event.sessionPath}/contexts/`;
+  const weekPrefix = `week${String(event.week).padStart(2, "0")}`;
+  const currentSuffix = event.questionId.includes("_SUPPORT_")
+    ? `${weekPrefix}_basic_support_q${event.questionId.slice(-2).toLowerCase()}`
+    : `${weekPrefix}_question${event.questionId.slice(-2).toLowerCase()}`;
+  const removals = event.outputContexts
+    .filter((context) => typeof context.name === "string"
+      && (/\/contexts\/week\d{2}_question\d{2}$/i.test(context.name)
+        || /\/contexts\/week\d{2}_basic_support_q\d{2}$/i.test(context.name)
+        || /\/contexts\/week\d{2}_complete$/i.test(context.name)))
+    .map((context) => ({ name: context.name as string, lifespanCount: 0 }));
+  return [...removals, {
+    name: `${prefix}${weekPrefix}_active`, lifespanCount: 99,
+    parameters: {
+      questionId: question.questionId, prompt: question.prompt, correctAnswer: question.correctAnswer,
+      hint1Text: question.hint1, hint2Text: question.hint2, hint3Text: question.hint3,
+      attempt: Math.min(20, event.attempt + 1), hintLevel: event.hintLevel,
+      wrongCount: safeInteger(event.values.wrongCount, 0, 0, 20) + 1,
+      xpEarned: event.hintLevel >= 3 ? 3 : event.hintLevel === 2 ? 5 : event.hintLevel === 1 ? 7 : 8,
+      correctCount: safeInteger(event.values.correctCount, 0, 0, 20), score: 0,
+      difficulty: event.difficulty, questionLevel: question.questionLevel, masterySignal: "retry",
+    },
+  }, { name: `${prefix}${currentSuffix}`, lifespanCount: 12 },
+  { name: `${prefix}${weekPrefix}_wrong_once`, lifespanCount: 20 },
+  { name: `${prefix}${weekPrefix}_streak_broken`, lifespanCount: 99 }];
 }
 
 function summarizeProgress(progress: Awaited<ReturnType<typeof getStudentProgress>>) {
@@ -72,10 +144,27 @@ export async function POST(request: Request) {
   let event: NormalizedDialogflowEvent | null = null;
   try {
     event = normalizeDialogflowEvent(parseDialogflowRequest(body));
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[chinh-ta/identity]", { webhookStudentId: diagnosticId(event.studentId), sessionId: diagnosticId(event.sessionId) });
+    }
+    if (event.eventType === "HINT_USED") {
+      if (!event.hintEvent) throw new Error("Thiếu dữ liệu gợi ý.");
+      const question = getQuestionDefinition(event.questionId);
+      if (!question) throw new Error(`Không tìm thấy câu hỏi ${event.questionId}.`);
+      const game = await recordHintEvent(event.hintEvent);
+      const hint = event.hintLevel === 1 ? question.hint1 : event.hintLevel === 2 ? question.hint2 : question.hint3;
+      return respond(event, `Gợi ý ${event.hintLevel}: ${hint} Em thử lại nhé.`, {
+        success: true, eventType: event.eventType, hint: { questionId: event.questionId, level: event.hintLevel },
+        game: gamePayload(event, game),
+      }, [backendStateContext(event.sessionPath, { totalXP: game.totalXP, level: game.level,
+        streak: game.streak, hintsUsed: game.hintsUsed })]);
+    }
+
     if (event.eventType === "ANSWER_RESULT") {
       if (!event.answerEvent) throw new Error("Thiếu dữ liệu kết quả câu hỏi.");
       const game = await recordAnswerEvent(event.answerEvent);
-      const correctAnswer = typeof event.values.correctAnswer === "string" ? event.values.correctAnswer : "";
+      const correctAnswer = getQuestionDefinition(event.questionId)?.correctAnswer
+        ?? (typeof event.values.correctAnswer === "string" ? event.values.correctAnswer : "");
       let feedback = answerText(event, game.xpEarned, game.totalXP, game.level, game.duplicate);
       let ai: Awaited<ReturnType<typeof feedbackAnswer>> | undefined;
       if (!game.duplicate && (!event.correct || event.attempt > 1 || event.hintLevel > 0)) {
@@ -86,13 +175,15 @@ export async function POST(request: Request) {
         feedback = ai.feedback;
         if (event.correct) feedback += ` +${game.xpEarned} XP. Tổng XP: ${game.totalXP}, Level ${game.level}.`;
       }
+      const nextPrompt = event.correct ? activeQuestionPrompt(event) : "";
+      if (nextPrompt) feedback += `\n${nextPrompt}`;
       const backendSupportRecommended = supportRecommended(event, game.mastery);
-      const gamePayload = { xpEarned: game.xpEarned, totalXP: game.totalXP, level: game.level,
-        mastery: game.mastery, streak: game.streak, newBadges: game.newBadges, duplicate: game.duplicate };
-      return respond(event, feedback, { success: true, eventType: event.eventType, game: gamePayload,
+      const resultPayload = gamePayload(event, game);
+      return respond(event, feedback, { success: true, eventType: event.eventType, game: resultPayload,
         adaptive: { backendMastery: game.mastery, backendSupportRecommended }, ...(ai ? { ai } : {}) }, [
         backendStateContext(event.sessionPath, { backendMastery: game.mastery, backendSupportRecommended,
           totalXP: game.totalXP, level: game.level, streak: game.streak }),
+        ...(!event.correct ? rejectedCorrectContexts(event) : []),
       ]);
     }
 
@@ -112,7 +203,7 @@ export async function POST(request: Request) {
       const text = completion.duplicate
         ? `Tuần ${event.week} đã được hoàn thành trước đó nên XP không bị cộng lại.`
         : `🏆 Hoàn thành Tuần ${event.week}!\n+30 XP hoàn thành tuần${noHintBonus ? "\n+20 XP bonus không dùng gợi ý" : ""}${answerXP ? `\n+${answerXP} XP câu cuối` : ""}\nTổng XP: ${completion.totalXP}\nLevel: ${completion.level}`;
-      const game = { xpEarned: awarded, completionXP: completion.xpEarned, answerXP, noHintBonus,
+      const game = { ...gamePayload(event, completion), xpEarned: awarded, completionXP: completion.xpEarned, answerXP, noHintBonus,
         totalXP: completion.totalXP, level: completion.level, mastery: completion.mastery,
         streak: completion.streak, newBadges, duplicate: completion.duplicate };
       return respond(event, text, { success: true, eventType: event.eventType, game }, [

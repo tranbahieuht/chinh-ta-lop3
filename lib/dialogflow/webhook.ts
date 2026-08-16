@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 
 import { safeBoolean, safeIdentifier, safeInteger, safeText } from "../security/input.ts";
-import type { AnswerEvent, WeekCompleteEvent } from "../gamification/types.ts";
+import { validateQuestionAnswer } from "./answer-validator.ts";
+import type { AnswerEvent, HintEvent, WeekCompleteEvent } from "../gamification/types.ts";
 
 export type DialogflowEventType =
-  | "ANSWER_RESULT" | "WEEK_COMPLETE" | "GET_PROGRESS" | "GET_SCORE" | "GET_LEADERBOARD" | "GET_BADGES"
+  | "ANSWER_RESULT" | "WEEK_COMPLETE" | "HINT_USED" | "GET_PROGRESS" | "GET_SCORE" | "GET_LEADERBOARD" | "GET_BADGES"
   | "AI_EXPLAIN" | "AI_FEEDBACK" | "AI_ANALYZE_MISTAKE" | "AI_CREATE_SIMILAR_QUESTION" | "UNKNOWN";
 
 type JsonObject = Record<string, unknown>;
@@ -14,6 +15,7 @@ export type ParsedIntentName = {
   week?: number;
   questionId?: string;
   result?: "correct" | "wrong";
+  hintLevel?: number;
   support: boolean;
   eventType: DialogflowEventType;
 };
@@ -66,6 +68,7 @@ export type NormalizedDialogflowEvent = {
   className: string;
   answerEvent?: AnswerEvent;
   weekCompleteEvent?: WeekCompleteEvent;
+  hintEvent?: HintEvent;
 };
 
 function object(value: unknown): JsonObject {
@@ -104,6 +107,7 @@ function normalizeEventType(value: unknown): DialogflowEventType | null {
   const aliases: Record<string, DialogflowEventType> = {
     ANSWER_RESULT: "ANSWER_RESULT", ANSWER_CORRECT: "ANSWER_RESULT", ANSWER_WRONG: "ANSWER_RESULT",
     ACCUMULATE_XP: "ANSWER_RESULT", WEEK_COMPLETE: "WEEK_COMPLETE",
+    HINT_USED: "HINT_USED",
     PROGRESS_REQUESTED: "GET_PROGRESS", GET_PROGRESS: "GET_PROGRESS",
     SCORE_REQUESTED: "GET_SCORE", GET_SCORE: "GET_SCORE",
     LEADERBOARD_REQUESTED: "GET_LEADERBOARD", GET_LEADERBOARD: "GET_LEADERBOARD",
@@ -125,17 +129,30 @@ export function parseIntentName(intentDisplayName: string): ParsedIntentName {
 
   const weekMatch = intentDisplayName.match(/^W(\d{2})_/i);
   const week = weekMatch ? Number(weekMatch[1]) : undefined;
+  const hintMatch = intentDisplayName.match(/^W(\d{2})_Hint_([123])$/i);
+  if (hintMatch) return { week, hintLevel: Number(hintMatch[2]), support: false, eventType: "HINT_USED" };
   if (week && /(?:^|_)Complete$/i.test(intentDisplayName)) return { week, support: false, eventType: "WEEK_COMPLETE" };
 
   const questionMatch = intentDisplayName.match(/^W\d{2}_(?:(Support)_)?Q(\d{2}).*?_(Correct|Wrong)(?:_|$)/i);
   if (questionMatch) {
     const support = Boolean(questionMatch[1]);
     const result = questionMatch[3].toLowerCase() as "correct" | "wrong";
-    const questionId = `${support ? "SUPPORT_" : ""}Q${questionMatch[2]}`;
+    const questionId = `W${String(week).padStart(2, "0")}_${support ? "SUPPORT_" : ""}Q${questionMatch[2]}`;
     return { week, questionId, result, support, eventType: questionMatch[2] === "09" && result === "correct" ? "WEEK_COMPLETE" : "ANSWER_RESULT" };
   }
   if (week && /_Wrong(?:_|$)/i.test(intentDisplayName)) return { week, result: "wrong", support: false, eventType: "ANSWER_RESULT" };
   return { week, support: /Support/i.test(intentDisplayName), eventType: "UNKNOWN" };
+}
+
+function questionIdFromContexts(outputContexts: DialogflowContext[], week: number): string {
+  for (const context of outputContexts) {
+    const name = typeof context.name === "string" ? context.name : "";
+    const support = name.match(/\/contexts\/week(\d{2})_basic_support_q(\d{2})$/i);
+    if (support && Number(support[1]) === week) return `W${support[1]}_SUPPORT_Q${support[2]}`.toUpperCase();
+    const main = name.match(/\/contexts\/week(\d{2})_question(\d{2})$/i);
+    if (main && Number(main[1]) === week) return `W${main[1]}_Q${main[2]}`.toUpperCase();
+  }
+  return "";
 }
 
 export function parseDialogflowRequest(bodyValue: unknown): ParsedDialogflowRequest {
@@ -163,13 +180,14 @@ export function parseDialogflowRequest(bodyValue: unknown): ParsedDialogflowRequ
   const displayName = safeText(resolvedValue(deepFind([customPayload, originalPayload], "displayName")) ?? resolvedValue(values.displayName), "Học sinh", 80);
   const className = safeText(resolvedValue(deepFind([customPayload, originalPayload], "className")) ?? resolvedValue(values.className), "Chưa xếp lớp", 40);
   const week = safeInteger(resolvedValue(values.week) ?? intent.week, 0, 0, 35);
-  const contextQuestionId = safeIdentifier(resolvedValue(values.questionId), "");
+  const contextQuestionId = questionIdFromContexts(outputContexts, week)
+    || safeIdentifier(resolvedValue(values.questionId), "").toUpperCase();
   const questionId = intent.questionId ?? (contextQuestionId || "unknown-question");
   const topic = safeText(resolvedValue(values.topic), "Chính tả tổng hợp", 120);
   const queryText = safeText(queryResult.queryText, "", 300);
-  const answer = safeText(resolvedValue(values.answer) ?? queryText, "", 300);
+  const answer = safeText(queryText || resolvedValue(values.answer), "", 300);
   const attempt = safeInteger(values.attempt, 1, 1, 20);
-  const hintLevel = safeInteger(values.hintLevel, 0, 0, 3);
+  const hintLevel = intent.hintLevel ?? safeInteger(values.hintLevel, 0, 0, 3);
   const difficulty = safeIdentifier(values.difficulty, "basic");
   const explicitEventId = resolvedValue(directValue(payloads, "eventId") ?? parameters.eventId);
   const timestampBucket = Math.floor(Date.now() / (10 * 60_000));
@@ -192,7 +210,10 @@ export function normalizeDialogflowEvent(request: ParsedDialogflowRequest): Norm
     ?? deepFind(request.payloads, "event") ?? deepFind(deepFind(request.payloads, "webhook"), "action"));
   let eventType = payloadAction ?? payloadEventType ?? (parsedIntent.eventType !== "UNKNOWN" ? parsedIntent.eventType : null) ?? metadataEvent ?? "UNKNOWN";
   if (eventType === "ANSWER_RESULT" && parsedIntent.eventType === "WEEK_COMPLETE") eventType = "WEEK_COMPLETE";
-  const correct = parsedIntent.result ? parsedIntent.result === "correct" : safeBoolean(request.values.correct, false);
+  const answerValidation = validateQuestionAnswer(request.questionId, request.answer);
+  const isAnswerEvent = eventType === "ANSWER_RESULT" || eventType === "WEEK_COMPLETE";
+  const correct = isAnswerEvent ? answerValidation.accepted : safeBoolean(request.values.correct, false);
+  if (eventType === "WEEK_COMPLETE" && !correct) eventType = "ANSWER_RESULT";
   const metadata = {
     ...request.values,
     parameters: request.parameters,
@@ -200,6 +221,9 @@ export function normalizeDialogflowEvent(request: ParsedDialogflowRequest): Norm
     responseId: request.responseId,
     intentResult: parsedIntent.result,
     supportQuestion: parsedIntent.support,
+    deterministicAnswerAccepted: answerValidation.accepted,
+    expectedAnswer: answerValidation.question?.correctAnswer,
+    payload: request.payload,
   };
   const shared = { eventId: request.eventId, studentCode: request.studentId, displayName: request.displayName,
     className: request.className, week: request.week, topic: request.topic };
@@ -210,13 +234,16 @@ export function normalizeDialogflowEvent(request: ParsedDialogflowRequest): Norm
         eventType: safeBoolean(request.values.answerRevealed) ? "ANSWER_REVEALED" as const : "ANSWER_RESULT" as const }
     : undefined;
   const weekCompleteEvent = eventType === "WEEK_COMPLETE" && request.week > 0 ? shared : undefined;
+  const hintEvent = eventType === "HINT_USED" && request.week > 0 && request.questionId !== "unknown-question"
+    ? { ...shared, questionId: request.questionId, hintLevel: request.hintLevel, difficulty: request.difficulty }
+    : undefined;
   return {
     eventId: request.eventId, eventType, studentId: request.studentId, sessionId: request.sessionId,
     sessionPath: request.sessionPath, intentDisplayName: request.intentDisplayName, queryText: request.queryText,
     week: request.week, topic: request.topic, questionId: request.questionId, answer: request.answer,
     correct, attempt: request.attempt, hintLevel: request.hintLevel, difficulty: request.difficulty,
     metadata, values: request.values, outputContexts: request.outputContexts,
-    displayName: request.displayName, className: request.className, answerEvent, weekCompleteEvent,
+    displayName: request.displayName, className: request.className, answerEvent, weekCompleteEvent, hintEvent,
   };
 }
 

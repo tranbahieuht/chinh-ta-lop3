@@ -1,0 +1,184 @@
+{
+  "zip": "C:\\Users\\Admin\\Documents\\AI chatbot\\fraction-ai-tutor\\dist\\ChinhTaLop3_Gamified_DialogflowES_v7.zip",
+  "intents": 995,
+  "entities": 9,
+  "webhookEnabledIntents": 848,
+  "weeks": [
+    {
+      "week": 1,
+      "title": "Ngày gặp lại",
+      "topic": "c / k"
+    },
+    {
+      "week": 2,
+      "title": "Cánh rừng trong nắng",
+      "topic": "g / gh"
+    },
+    {
+      "week": 3,
+      "title": "Nhật kí tập bơi",
+      "topic": "ng / ngh"
+    },
+    {
+      "week": 4,
+      "title": "Mùa hè lấp lánh",
+      "topic": "ch / tr; v / d"
+    },
+    {
+      "week": 5,
+      "title": "Đi học vui sao",
+      "topic": "s / x; dấu hỏi / dấu ngã"
+    },
+    {
+      "week": 6,
+      "title": "Lời giải toán đặc biệt",
+      "topic": "r / d / gi; an / ang"
+    },
+    {
+      "week": 7,
+      "title": "Bàn tay cô giáo",
+      "topic": "l / n; ăn / ăng"
+    },
+    {
+      "week": 8,
+      "title": "Thư viện",
+      "topic": "ch / tr; ân / âng; dân / dâng"
+    },
+    {
+      "week": 9,
+      "title": "Ôn tập giữa học kì I",
+      "topic": "Checkpoint tuần 1–8"
+    },
+    {
+      "week": 10,
+      "title": "Ngưỡng cửa",
+      "topic": "iêu / ươu; en / eng"
+    },
+    {
+      "week": 11,
+      "title": "Khi cả nhà bé tí",
+      "topic": "iu / ưu; iên / iêng"
+    },
+    {
+      "week": 12,
+      "title": "Tia nắng bé nhỏ",
+      "topic": "s / x; uôn / uông"
+    },
+    {
+      "week": 13,
+      "title": "Tôi yêu em tôi",
+      "topic": "r / d / gi; ươn / ương"
+    },
+    {
+      "week": 14,
+      "title": "Những bậc đá chạm mây",
+      "topic": "ch / tr; ăn / ăng"
+    },
+    {
+      "week": 15,
+      "title": "Những chiếc áo ấm",
+      "topic": "l / n; dấu hỏi / dấu ngã"
+    },
+    {
+      "week": 16,
+      "title": "Ngôi nhà trong cỏ",
+      "topic": "s / x; ao / au"
+    },
+    {
+      "week": 17,
+      "title": "Người làm đồ chơi",
+      "topic": "Luyện viết phiếu mượn sách thư viện"
+    },
+    {
+      "week": 18,
+      "title": "Ôn tập và đánh giá cuối học kì I",
+      "topic": "Boss cuối học kì I"
+    },
+    {
+      "week": 19,
+      "title": "Bầu trời",
+      "topic": "ch / tr; chuyền / truyền"
+    },
+    {
+      "week": 20,
+      "title": "Cóc kiện Trời",
+      "topic": "s / x; ăt / ăc"
+    },
+    {
+      "week": 21,
+      "title": "Ngày hội rừng xanh",
+      "topic": "Viết hoa địa lí; iêu / ươu; ât / âc"
+    },
+    {
+      "week": 22,
+      "title": "Mặt trời xanh của tôi",
+      "topic": "r / d / gi; in / inh"
+    },
+    {
+      "week": 23,
+      "title": "Lời kêu gọi toàn dân tập thể dục",
+      "topic": "l / n; dấu hỏi / dấu ngã"
+    },
+    {
+      "week": 24,
+      "title": "Chuyện bên cửa sổ",
+      "topic": "iu / ưu; iêm / im"
+    },
+    {
+      "week": 25,
+      "title": "Mèo đi câu cá",
+      "topic": "s / x; v / d"
+    },
+    {
+      "week": 26,
+      "title": "Ngày như thế nào là đẹp?",
+      "topic": "r / d / gi; dấu hỏi / dấu ngã"
+    },
+    {
+      "week": 27,
+      "title": "Ôn tập giữa học kì II",
+      "topic": "Checkpoint tuần 19–26"
+    },
+    {
+      "week": 28,
+      "title": "Đất nước là gì?",
+      "topic": "ch / tr; ươc / ươt"
+    },
+    {
+      "week": 29,
+      "title": "Sông Hương",
+      "topic": "Viết hoa tên riêng địa lí Việt Nam"
+    },
+    {
+      "week": 30,
+      "title": "Nhà rông",
+      "topic": "s / x; dấu hỏi / dấu ngã"
+    },
+    {
+      "week": 31,
+      "title": "Hai Bà Trưng",
+      "topic": "ch / tr và các nhóm tiếng"
+    },
+    {
+      "week": 32,
+      "title": "Ngọn lửa Ô-lim-pích",
+      "topic": "Viết hoa tên người Việt Nam và nước ngoài"
+    },
+    {
+      "week": 33,
+      "title": "Thư của ông Trái Đất gửi các bạn nhỏ",
+      "topic": "r / d / gi; dấu hỏi / dấu ngã"
+    },
+    {
+      "week": 34,
+      "title": "Bác sĩ Y-éc-xanh",
+      "topic": "Viết tên người và địa lí nước ngoài"
+    },
+    {
+      "week": 35,
+      "title": "Ôn tập và đánh giá cuối năm",
+      "topic": "Final Boss"
+    }
+  ],
+  "zipBytes": 1672261
+}

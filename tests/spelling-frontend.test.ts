@@ -29,6 +29,7 @@ test("8 completed week is review only below mastery threshold", () => assert.equ
 test("9 chatbot learning route calls the server adapter", () => { assert.match(source("components/spelling-chat.tsx"), /fetch\("\/api\/chat"/); assert.doesNotMatch(source("components/spelling-chat.tsx"), /dialogflow\.googleapis/); });
 test("10 A B C lines become quick-reply choices", () => assert.deepEqual(extractChoices("Tên nào đúng?\nA. ninh bình\nB. Ninh Bình\nC. NINH BÌNH"),[{key:"A",label:"ninh bình"},{key:"B",label:"Ninh Bình"},{key:"C",label:"NINH BÌNH"}]));
 test("11 XP game payload updates immediately", () => { const next=mergeGameProgress(fakeProgress,{xpEarned:10,totalXP:90}); assert.equal(next.totalXP,90); assert.equal(next.student.total_xp,90); });
+test("11b counters and hints update optimistically", () => { const next=mergeGameProgress(fakeProgress,{week:1,weekXP:90,correctCount:6,wrongCount:1,hintsUsed:1,score:100}); const row=next.weekProgress[0]; assert.equal(row.correct_count,6); assert.equal(row.hints_used,1); assert.equal(row.xp_earned,90); });
 test("12 badge game payload is supported by toast UI", () => assert.match(source("components/spelling-chat.tsx"), /Huy hiệu mới/));
 test("13 nine production badges are present", () => assert.equal(badgeCatalog.length,9));
 test("14 leaderboard and teacher failure states are implemented", () => { assert.match(source("components/leaderboard.tsx"), /ErrorState/); assert.match(source("components/teacher-dashboard.tsx"), /ErrorState/); });

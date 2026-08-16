@@ -44,6 +44,10 @@ export function SpellingChat({ week }: { week: SpellingWeek }) {
     setError("");
     setSuggestions([]);
     try {
+      if (process.env.NODE_ENV !== "production") {
+        const code = identity.studentCode;
+        console.info("[chinh-ta/identity]", { frontendStudentId: code.length > 10 ? `${code.slice(0, 4)}…${code.slice(-4)}` : code });
+      }
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,6 +59,9 @@ export function SpellingChat({ week }: { week: SpellingWeek }) {
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: "bot", text: message }]);
       setSuggestions(reply.quickReplies || reply.suggestions || []);
       if (reply.game) {
+        if (reply.game.studentCode && reply.game.studentCode !== identity.studentCode) {
+          throw new Error("Phiên học không khớp hồ sơ tiến độ. Em tải lại trang rồi thử lại nhé.");
+        }
         applyGamePayload(reply.game);
         const notice = gameToast(reply.game);
         if (notice) { setToast(notice); window.setTimeout(() => setToast(""), 2800); }

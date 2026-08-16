@@ -23,7 +23,7 @@ assert.equal(answer.answerEvent?.correct, true);
 
 const complete = parseDialogflowWebhook({
   ...body,
-  queryResult: { ...body.queryResult, intent: { displayName: "W01_Q09_Correct" }, parameters: { eventId: "week-event-1" } },
+  queryResult: { ...body.queryResult, queryText: "kể chuyện", intent: { displayName: "W01_Q09_Correct" }, parameters: { eventId: "week-event-1" } },
 });
 assert.equal(complete.eventType, "WEEK_COMPLETE");
 assert.equal(complete.weekCompleteEvent?.week, 1);
@@ -56,5 +56,20 @@ const sameGuest = parseDialogflowWebhook({
   queryResult: { intent: { displayName: "W02_Q02_Wrong" }, parameters: {}, outputContexts: [{ parameters: { week: 2 } }] },
 });
 assert.equal(sameGuest.studentId, guest.studentId, "Cùng Dialogflow session phải map vào cùng guest student.");
+
+const falsePositive = parseDialogflowWebhook({
+  ...body,
+  queryResult: { ...body.queryResult, queryText: "mất tinh", intent: { displayName: "W01_Q02_Correct" } },
+});
+assert.equal(falsePositive.correct, false, "Backend phải bác đáp án sai dù Dialogflow match Correct Intent.");
+assert.equal(falsePositive.questionId, "W01_Q02");
+
+const hint = parseDialogflowWebhook({
+  ...body,
+  queryResult: { ...body.queryResult, queryText: "gợi ý", intent: { displayName: "W01_Hint_1" },
+    outputContexts: [{ name: "projects/demo/agent/sessions/session-123/contexts/week01_question02", parameters: { week: 1, topic: "c / k" } }] },
+});
+assert.equal(hint.eventType, "HINT_USED");
+assert.equal(hint.hintEvent?.questionId, "W01_Q02");
 
 console.log("Dialogflow spelling webhook parsing: PASS");

@@ -1,5 +1,7 @@
 import { calculateAnswerXP, calculateLevel, updateMastery, updateStreak, XP_RULES } from "./rules.ts";
-import type { AnswerEvent, GamificationResult, WeekCompleteEvent } from "./types.ts";
+import type { AnswerEvent, GamificationResult, HintEvent, WeekCompleteEvent } from "./types.ts";
+
+type WeekStats = { xp: number; score: number; correct: number; wrong: number; hints: number };
 
 type SimStudent = {
   id: string;
@@ -13,6 +15,7 @@ type SimStudent = {
   lastActivityAt: string | null;
   mastery: Map<string, number>;
   hintsByWeek: Map<number, number>;
+  weekStats: Map<number, WeekStats>;
   completedWeeks: Set<number>;
   badges: Set<string>;
   recentCorrect: boolean[];
@@ -34,16 +37,19 @@ export class InMemoryGamificationEngine {
     const created: SimStudent = {
       id: `student-${code}`, studentCode: code, displayName, className, totalXP: 0, level: 1,
       streak: 0, longestStreak: 0, lastActivityAt: null, mastery: new Map(), hintsByWeek: new Map(),
+      weekStats: new Map(),
       completedWeeks: new Set(), badges: new Set(), recentCorrect: [], correctNoHint: 0, comebacks: 0,
     };
     this.students.set(code, created);
     return created;
   }
 
-  private result(student: SimStudent, xpEarned: number, previousLevel: number, duplicate: boolean, newBadges: string[], topic: string): GamificationResult {
+  private result(student: SimStudent, xpEarned: number, previousLevel: number, duplicate: boolean, newBadges: string[], topic: string, week?: number): GamificationResult {
+    const stats = week ? student.weekStats.get(week) : undefined;
     return { success: true, duplicate, studentId: student.id, xpEarned, totalXP: student.totalXP,
       level: student.level, levelUp: student.level > previousLevel, mastery: student.mastery.get(topic) ?? 50,
-      streak: student.streak, newBadges };
+      streak: student.streak, newBadges, week, weekXP: stats?.xp, score: stats?.score,
+      correctCount: stats?.correct, wrongCount: stats?.wrong, hintsUsed: stats?.hints };
   }
 
   private applyActivity(student: SimStudent, occurredAt: string) {
@@ -70,7 +76,7 @@ export class InMemoryGamificationEngine {
 
   recordAnswer(event: AnswerEvent): GamificationResult {
     const student = this.student(event.studentCode, event.displayName, event.className);
-    if (this.eventIds.has(event.eventId)) return this.result(student, 0, student.level, true, [], event.topic);
+    if (this.eventIds.has(event.eventId)) return this.result(student, 0, student.level, true, [], event.topic, event.week);
     this.eventIds.add(event.eventId);
     const previousLevel = student.level;
     const occurredAt = event.occurredAt ?? new Date().toISOString();
@@ -78,19 +84,38 @@ export class InMemoryGamificationEngine {
     student.totalXP += xp;
     student.level = calculateLevel(student.totalXP);
     student.mastery.set(event.topic, updateMastery(student.mastery.get(event.topic) ?? 50, event));
-    student.hintsByWeek.set(event.week, (student.hintsByWeek.get(event.week) ?? 0) + event.hintLevel);
+    const stats = student.weekStats.get(event.week) ?? { xp: 0, score: 0, correct: 0, wrong: 0, hints: 0 };
+    stats.xp += xp;
+    stats.score += event.correct ? 10 : 0;
+    stats.correct += event.correct ? 1 : 0;
+    stats.wrong += event.correct ? 0 : 1;
+    student.weekStats.set(event.week, stats);
     student.recentCorrect.push(event.correct);
     if (event.correct && event.hintLevel === 0) student.correctNoHint += 1;
     if (event.correct && event.attempt > 1) student.comebacks += 1;
     this.applyActivity(student, occurredAt);
     this.ledger.push({ eventId: event.eventId, studentId: student.id, xp, occurredAt, type: event.eventType ?? "ANSWER_RESULT", week: event.week });
-    return this.result(student, xp, previousLevel, false, this.awardBadges(student), event.topic);
+    return this.result(student, xp, previousLevel, false, this.awardBadges(student), event.topic, event.week);
+  }
+
+  recordHint(event: HintEvent): GamificationResult {
+    const student = this.student(event.studentCode, event.displayName, event.className);
+    if (this.eventIds.has(event.eventId)) return this.result(student, 0, student.level, true, [], event.topic, event.week);
+    this.eventIds.add(event.eventId);
+    const stats = student.weekStats.get(event.week) ?? { xp: 0, score: 0, correct: 0, wrong: 0, hints: 0 };
+    stats.hints += 1;
+    student.weekStats.set(event.week, stats);
+    student.hintsByWeek.set(event.week, stats.hints);
+    this.applyActivity(student, event.occurredAt ?? new Date().toISOString());
+    this.ledger.push({ eventId: event.eventId, studentId: student.id, xp: 0,
+      occurredAt: event.occurredAt ?? new Date().toISOString(), type: "HINT_USED", week: event.week });
+    return this.result(student, 0, student.level, false, [], event.topic, event.week);
   }
 
   completeWeek(event: WeekCompleteEvent): GamificationResult {
     const student = this.student(event.studentCode, event.displayName, event.className);
     const completionKey = `${event.studentCode}:${event.week}`;
-    if (this.eventIds.has(event.eventId) || this.completedKeys.has(completionKey)) return this.result(student, 0, student.level, true, [], event.topic);
+    if (this.eventIds.has(event.eventId) || this.completedKeys.has(completionKey)) return this.result(student, 0, student.level, true, [], event.topic, event.week);
     this.eventIds.add(event.eventId);
     this.completedKeys.add(completionKey);
     const previousLevel = student.level;
@@ -101,7 +126,17 @@ export class InMemoryGamificationEngine {
     student.completedWeeks.add(event.week);
     this.applyActivity(student, occurredAt);
     this.ledger.push({ eventId: event.eventId, studentId: student.id, xp, occurredAt, type: "WEEK_COMPLETE", week: event.week });
-    return this.result(student, xp, previousLevel, false, this.awardBadges(student), event.topic);
+    const stats = student.weekStats.get(event.week) ?? { xp: 0, score: 0, correct: 0, wrong: 0, hints: 0 };
+    stats.xp += xp;
+    student.weekStats.set(event.week, stats);
+    return this.result(student, xp, previousLevel, false, this.awardBadges(student), event.topic, event.week);
+  }
+
+  snapshot(studentCode: string) {
+    const student = this.students.get(studentCode);
+    if (!student) return null;
+    return { totalXP: student.totalXP, level: student.level, streak: student.streak,
+      weeks: Object.fromEntries([...student.weekStats.entries()].map(([week, stats]) => [week, { ...stats }])) };
   }
 
   leaderboard(period: "weekly" | "all_time", range?: { start: string; end: string }) {
@@ -116,4 +151,3 @@ export class InMemoryGamificationEngine {
       .sort((a, b) => b.xp - a.xp).map((row, index) => ({ rank: index + 1, ...row }));
   }
 }
-

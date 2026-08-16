@@ -2,7 +2,7 @@
 
 ## Kiến trúc
 
-Backend nằm trong project Next.js 16 App Router và triển khai cùng website trên Vercel. Route Handlers chỉ dùng Supabase service-role ở server. Hai RPC PostgreSQL `chinh_ta_record_answer` và `chinh_ta_complete_week` thực hiện ghi ledger, cộng XP, cập nhật level/progress/mastery/streak và cấp badge trong transaction.
+Backend nằm trong project Next.js 16 App Router và triển khai cùng website trên Vercel. Route Handlers chỉ dùng Supabase service-role ở server. Ba RPC PostgreSQL `chinh_ta_record_answer`, `chinh_ta_record_hint` và `chinh_ta_complete_week` thực hiện ghi ledger, cộng XP, cập nhật level/progress/mastery/streak và cấp badge trong transaction. `HINT_USED` có event ID riêng, không cộng XP và chỉ tăng bộ đếm gợi ý một lần.
 
 `learning_events.event_id` là khóa idempotency. Unique index `(student_id, week)` cho `WEEK_COMPLETE` còn chặn việc dùng event ID khác để nhận lại thưởng tuần. Mastery được lưu riêng và không tham gia leaderboard.
 
@@ -39,11 +39,11 @@ Fulfillment URL sau khi deploy là `https://<domain>/api/dialogflow/webhook`. So
 
 Webhook đọc `queryResult.intent.displayName`, `queryResult.parameters`, `queryResult.outputContexts`, `originalDetectIntentRequest.payload` và custom payload nếu có. Nó không phụ thuộc `queryResult.action`, vì intent static để action rỗng. Thứ tự nhận diện chính xác là `payload.action`, `payload.eventType`, regex tên intent, rồi parameters/event metadata. Field thiếu được thay bằng giá trị an toàn và event không nhận diện được trở thành `UNKNOWN`.
 
-Các event hỗ trợ: `ANSWER_RESULT`, `WEEK_COMPLETE`, `GET_PROGRESS`, `GET_SCORE`, `GET_LEADERBOARD`, `GET_BADGES`, `AI_EXPLAIN`, `AI_FEEDBACK`, `AI_ANALYZE_MISTAKE`, `AI_CREATE_SIMILAR_QUESTION`, `UNKNOWN`.
+Các event hỗ trợ: `ANSWER_RESULT`, `HINT_USED`, `WEEK_COMPLETE`, `GET_PROGRESS`, `GET_SCORE`, `GET_LEADERBOARD`, `GET_BADGES`, `AI_EXPLAIN`, `AI_FEEDBACK`, `AI_ANALYZE_MISTAKE`, `AI_CREATE_SIMILAR_QUESTION`, `UNKNOWN`.
 
-Agent v6 chỉ bật `webhookUsed` cho các nhóm cần backend: intent `Correct`, `Wrong`, hoàn thành tuần, `Global_Progress`, `Global_Score`, `Global_Leaderboard`, `Global_Badges` và bốn intent AI. Theory, Start, Hint, menu và các intent điều hướng vẫn static. Mỗi intent bật webhook vẫn giữ text response tĩnh; route cũng catch lỗi database/Gemini và trả HTTP 200 với phản hồi an toàn để flow không bị câm.
+Agent v7 chỉ bật `webhookUsed` cho các nhóm cần backend: intent `Correct`, `Wrong`, `Hint 1/2/3`, hoàn thành tuần, `Global_Progress`, `Global_Score`, `Global_Leaderboard`, `Global_Badges` và bốn intent AI. Theory, Start, menu và các intent điều hướng vẫn static. Mỗi intent bật webhook vẫn giữ text response tĩnh; route cũng catch lỗi database/Gemini và trả HTTP 200 với phản hồi an toàn để flow không bị câm.
 
-Custom payload v6 dùng schema `3.0`:
+Custom payload v7 dùng schema `3.0`:
 
 ```json
 {

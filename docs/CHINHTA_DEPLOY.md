@@ -72,7 +72,7 @@ RLS được bật trên cả 7 tables. Không có policy cho `anon` hoặc `aut
 
 Backend dùng client server-only tại `lib/db/supabase-admin.ts`. Service role/secret key bypass RLS theo thiết kế Supabase. Hai RPC ghi dữ liệu và helper cấp badge chỉ được cấp quyền cho `service_role`.
 
-Mỗi lần `chinh_ta_record_answer` hoặc `chinh_ta_complete_week` là một PostgreSQL transaction. Nếu insert event thành công nhưng một update sau đó lỗi, toàn bộ function rollback; retry không bị mắc trạng thái “đã có event nhưng chưa cộng XP”.
+Mỗi lần `chinh_ta_record_answer`, `chinh_ta_record_hint` hoặc `chinh_ta_complete_week` là một PostgreSQL transaction. Nếu insert event thành công nhưng một update sau đó lỗi, toàn bộ function rollback; retry không bị mắc trạng thái “đã có event nhưng chưa cộng XP”.
 
 ### 6. Database smoke test
 

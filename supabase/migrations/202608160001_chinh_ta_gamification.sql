@@ -239,6 +239,8 @@ declare
   previous_level integer;
   awarded_xp integer;
   mastery integer;
+  progress week_progress%rowtype;
+  effective_hint_level integer;
   new_badges text[];
   event_time timestamptz := coalesce(p_occurred_at, now());
   current_day date := (coalesce(p_occurred_at, now()) at time zone 'Asia/Ho_Chi_Minh')::date;
@@ -256,23 +258,32 @@ begin
   returning * into learner;
   select * into learner from students where id = learner.id for update;
 
+  select greatest(p_hint_level, coalesce(max((payload->>'hintLevel')::integer), 0))
+  into effective_hint_level from learning_events
+  where student_id = learner.id and week = p_week and event_type = 'HINT_USED'
+    and payload->>'questionId' = p_question_id;
+
   if exists (select 1 from learning_events where event_id = p_event_id) then
     select mastery_score into mastery from topic_mastery where student_id = learner.id and topic = p_topic;
+    select * into progress from week_progress where student_id = learner.id and week = p_week;
     return jsonb_build_object('success', true, 'duplicate', true, 'studentId', learner.id,
       'xpEarned', 0, 'totalXP', learner.total_xp, 'level', learner.level, 'levelUp', false,
-      'mastery', coalesce(mastery, 50), 'streak', learner.streak, 'newBadges', '[]'::jsonb);
+      'mastery', coalesce(mastery, 50), 'streak', learner.streak, 'newBadges', '[]'::jsonb,
+      'week', p_week, 'weekXP', coalesce(progress.xp_earned, 0), 'score', coalesce(progress.score, 0),
+      'correctCount', coalesce(progress.correct_count, 0), 'wrongCount', coalesce(progress.wrong_count, 0),
+      'hintsUsed', coalesce(progress.hints_used, 0));
   end if;
 
   previous_level := learner.level;
-  awarded_xp := chinh_ta_answer_xp(p_correct, p_attempt, p_hint_level, p_event_type);
+  awarded_xp := chinh_ta_answer_xp(p_correct, p_attempt, effective_hint_level, p_event_type);
   insert into learning_events (event_id, student_id, event_type, week, topic, xp_awarded, payload, created_at)
   values (p_event_id, learner.id, p_event_type, p_week, p_topic, awarded_xp,
     jsonb_build_object('questionId', p_question_id, 'correct', p_correct, 'attempt', p_attempt,
-      'hintLevel', p_hint_level, 'difficulty', p_difficulty), event_time);
+      'hintLevel', effective_hint_level, 'difficulty', p_difficulty), event_time);
   insert into answer_history (event_id, student_id, week, question_id, topic, answer, correct, attempt,
     hint_level, difficulty, xp_earned, mastery_signal, created_at)
   values (p_event_id, learner.id, p_week, p_question_id, p_topic, coalesce(p_answer, ''), p_correct,
-    p_attempt, p_hint_level, p_difficulty, awarded_xp, coalesce(p_mastery_signal, ''), event_time);
+    p_attempt, effective_hint_level, p_difficulty, awarded_xp, coalesce(p_mastery_signal, ''), event_time);
 
   previous_day := case when learner.last_activity_at is null then null else (learner.last_activity_at at time zone 'Asia/Ho_Chi_Minh')::date end;
   learner.streak := case when previous_day = current_day then greatest(1, learner.streak)
@@ -287,24 +298,24 @@ begin
 
   insert into topic_mastery (student_id, topic, mastery_score, total_questions, correct_first_try,
     correct_after_hint, wrong_answers, hints_used)
-  values (learner.id, p_topic, greatest(0, least(100, 50 + chinh_ta_mastery_delta(p_correct, p_attempt, p_hint_level))),
-    1, case when p_correct and p_attempt = 1 and p_hint_level = 0 then 1 else 0 end,
-    case when p_correct and (p_attempt > 1 or p_hint_level > 0) then 1 else 0 end,
-    case when not p_correct then 1 else 0 end, p_hint_level)
+  values (learner.id, p_topic, greatest(0, least(100, 50 + chinh_ta_mastery_delta(p_correct, p_attempt, effective_hint_level))),
+    1, case when p_correct and p_attempt = 1 and effective_hint_level = 0 then 1 else 0 end,
+    case when p_correct and (p_attempt > 1 or effective_hint_level > 0) then 1 else 0 end,
+    case when not p_correct then 1 else 0 end, 0)
   on conflict (student_id, topic) do update set
-    mastery_score = greatest(0, least(100, topic_mastery.mastery_score + chinh_ta_mastery_delta(p_correct, p_attempt, p_hint_level))),
+    mastery_score = greatest(0, least(100, topic_mastery.mastery_score + chinh_ta_mastery_delta(p_correct, p_attempt, effective_hint_level))),
     total_questions = topic_mastery.total_questions + 1,
-    correct_first_try = topic_mastery.correct_first_try + case when p_correct and p_attempt = 1 and p_hint_level = 0 then 1 else 0 end,
-    correct_after_hint = topic_mastery.correct_after_hint + case when p_correct and (p_attempt > 1 or p_hint_level > 0) then 1 else 0 end,
+    correct_first_try = topic_mastery.correct_first_try + case when p_correct and p_attempt = 1 and effective_hint_level = 0 then 1 else 0 end,
+    correct_after_hint = topic_mastery.correct_after_hint + case when p_correct and (p_attempt > 1 or effective_hint_level > 0) then 1 else 0 end,
     wrong_answers = topic_mastery.wrong_answers + case when not p_correct then 1 else 0 end,
-    hints_used = topic_mastery.hints_used + p_hint_level
+    hints_used = topic_mastery.hints_used
   returning mastery_score into mastery;
 
   insert into week_progress (student_id, week, topic, status, xp_earned, score, correct_count,
     wrong_count, hints_used, highest_difficulty, mastery_score)
   values (learner.id, p_week, p_topic, 'in_progress', awarded_xp,
     case when p_correct then 10 else 0 end, case when p_correct then 1 else 0 end,
-    case when p_correct then 0 else 1 end, p_hint_level, p_difficulty, mastery)
+    case when p_correct then 0 else 1 end, 0, p_difficulty, mastery)
   on conflict (student_id, week) do update set
     topic = excluded.topic,
     xp_earned = week_progress.xp_earned + excluded.xp_earned,
@@ -313,13 +324,94 @@ begin
     wrong_count = week_progress.wrong_count + excluded.wrong_count,
     hints_used = week_progress.hints_used + excluded.hints_used,
     highest_difficulty = case when chinh_ta_difficulty_rank(excluded.highest_difficulty) > chinh_ta_difficulty_rank(week_progress.highest_difficulty) then excluded.highest_difficulty else week_progress.highest_difficulty end,
-    mastery_score = excluded.mastery_score;
+    mastery_score = excluded.mastery_score
+  returning * into progress;
 
   new_badges := chinh_ta_award_badges(learner.id);
   return jsonb_build_object('success', true, 'duplicate', false, 'studentId', learner.id,
     'xpEarned', awarded_xp, 'totalXP', learner.total_xp, 'level', learner.level,
     'levelUp', learner.level > previous_level, 'mastery', mastery, 'streak', learner.streak,
-    'newBadges', to_jsonb(new_badges));
+    'newBadges', to_jsonb(new_badges), 'week', p_week, 'weekXP', progress.xp_earned,
+    'score', progress.score, 'correctCount', progress.correct_count,
+    'wrongCount', progress.wrong_count, 'hintsUsed', progress.hints_used);
+end;
+$$;
+
+create or replace function public.chinh_ta_record_hint(
+  p_event_id text,
+  p_student_code text,
+  p_display_name text,
+  p_class_name text,
+  p_week integer,
+  p_question_id text,
+  p_topic text,
+  p_hint_level integer,
+  p_difficulty text,
+  p_occurred_at timestamptz default now()
+) returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  learner students%rowtype;
+  progress week_progress%rowtype;
+  mastery integer;
+  event_time timestamptz := coalesce(p_occurred_at, now());
+  current_day date := (coalesce(p_occurred_at, now()) at time zone 'Asia/Ho_Chi_Minh')::date;
+  previous_day date;
+begin
+  if coalesce(p_event_id, '') = '' or p_week not between 1 and 35 or p_hint_level not between 1 and 3 then
+    raise exception 'Invalid hint event';
+  end if;
+
+  insert into students (student_code, display_name, class_name)
+  values (p_student_code, coalesce(nullif(p_display_name, ''), 'Học sinh'), coalesce(nullif(p_class_name, ''), 'Chưa xếp lớp'))
+  on conflict (student_code) do update set
+    display_name = case when coalesce(p_display_name, '') <> '' then p_display_name else students.display_name end,
+    class_name = case when coalesce(p_class_name, '') <> '' then p_class_name else students.class_name end
+  returning * into learner;
+  select * into learner from students where id = learner.id for update;
+
+  if exists (select 1 from learning_events where event_id = p_event_id) then
+    select mastery_score into mastery from topic_mastery where student_id = learner.id and topic = p_topic;
+    select * into progress from week_progress where student_id = learner.id and week = p_week;
+    return jsonb_build_object('success', true, 'duplicate', true, 'studentId', learner.id,
+      'xpEarned', 0, 'totalXP', learner.total_xp, 'level', learner.level, 'levelUp', false,
+      'mastery', coalesce(mastery, 50), 'streak', learner.streak, 'newBadges', '[]'::jsonb,
+      'week', p_week, 'weekXP', coalesce(progress.xp_earned, 0), 'score', coalesce(progress.score, 0),
+      'correctCount', coalesce(progress.correct_count, 0), 'wrongCount', coalesce(progress.wrong_count, 0),
+      'hintsUsed', coalesce(progress.hints_used, 0));
+  end if;
+
+  insert into learning_events (event_id, student_id, event_type, week, topic, xp_awarded, payload, created_at)
+  values (p_event_id, learner.id, 'HINT_USED', p_week, p_topic, 0,
+    jsonb_build_object('questionId', p_question_id, 'hintLevel', p_hint_level, 'difficulty', p_difficulty), event_time);
+
+  previous_day := case when learner.last_activity_at is null then null else (learner.last_activity_at at time zone 'Asia/Ho_Chi_Minh')::date end;
+  learner.streak := case when previous_day = current_day then greatest(1, learner.streak)
+    when previous_day = current_day - 1 then greatest(1, learner.streak + 1) else 1 end;
+  learner.longest_streak := greatest(learner.longest_streak, learner.streak);
+  update students set current_week = greatest(current_week, p_week), streak = learner.streak,
+    longest_streak = learner.longest_streak, last_activity_at = event_time where id = learner.id;
+
+  insert into topic_mastery (student_id, topic, mastery_score, total_questions, correct_first_try,
+    correct_after_hint, wrong_answers, hints_used)
+  values (learner.id, p_topic, 50, 0, 0, 0, 0, 1)
+  on conflict (student_id, topic) do update set hints_used = topic_mastery.hints_used + 1
+  returning mastery_score into mastery;
+
+  insert into week_progress (student_id, week, topic, status, xp_earned, score, correct_count,
+    wrong_count, hints_used, highest_difficulty, mastery_score)
+  values (learner.id, p_week, p_topic, 'in_progress', 0, 0, 0, 0, 1, p_difficulty, mastery)
+  on conflict (student_id, week) do update set
+    topic = excluded.topic, hints_used = week_progress.hints_used + 1,
+    highest_difficulty = case when chinh_ta_difficulty_rank(excluded.highest_difficulty) > chinh_ta_difficulty_rank(week_progress.highest_difficulty) then excluded.highest_difficulty else week_progress.highest_difficulty end,
+    mastery_score = excluded.mastery_score
+  returning * into progress;
+
+  return jsonb_build_object('success', true, 'duplicate', false, 'studentId', learner.id,
+    'xpEarned', 0, 'totalXP', learner.total_xp, 'level', learner.level, 'levelUp', false,
+    'mastery', mastery, 'streak', learner.streak, 'newBadges', '[]'::jsonb,
+    'week', p_week, 'weekXP', progress.xp_earned, 'score', progress.score,
+    'correctCount', progress.correct_count, 'wrongCount', progress.wrong_count,
+    'hintsUsed', progress.hints_used);
 end;
 $$;
 
@@ -417,6 +509,8 @@ grant all on table public.learning_events to service_role;
 revoke all on function public.chinh_ta_award_badges(uuid) from public, anon, authenticated;
 grant execute on function public.chinh_ta_award_badges(uuid) to service_role;
 revoke all on function public.chinh_ta_record_answer(text,text,text,text,integer,text,text,text,boolean,integer,integer,text,text,text,timestamptz) from public, anon, authenticated;
+revoke all on function public.chinh_ta_record_hint(text,text,text,text,integer,text,text,integer,text,timestamptz) from public, anon, authenticated;
 revoke all on function public.chinh_ta_complete_week(text,text,text,text,integer,text,timestamptz) from public, anon, authenticated;
 grant execute on function public.chinh_ta_record_answer(text,text,text,text,integer,text,text,text,boolean,integer,integer,text,text,text,timestamptz) to service_role;
+grant execute on function public.chinh_ta_record_hint(text,text,text,text,integer,text,text,integer,text,timestamptz) to service_role;
 grant execute on function public.chinh_ta_complete_week(text,text,text,text,integer,text,timestamptz) to service_role;

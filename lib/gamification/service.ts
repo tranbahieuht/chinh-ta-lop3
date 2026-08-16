@@ -2,7 +2,7 @@ import "server-only";
 
 import { getSupabaseAdmin } from "@/lib/db/supabase-admin";
 import { isUuid, safeIdentifier, safeText } from "@/lib/security/input";
-import type { AnswerEvent, GamificationResult, WeekCompleteEvent } from "./types";
+import type { AnswerEvent, GamificationResult, HintEvent, WeekCompleteEvent } from "./types";
 
 export class GamificationDatabaseError extends Error {
   constructor() {
@@ -21,7 +21,7 @@ function asGamificationResult(value: unknown): GamificationResult {
   return value as GamificationResult;
 }
 
-function logGamificationResult(eventType: "ANSWER_RESULT" | "WEEK_COMPLETE", week: number, result: GamificationResult) {
+function logGamificationResult(eventType: "ANSWER_RESULT" | "WEEK_COMPLETE" | "HINT_USED", week: number, result: GamificationResult) {
   console.info("[chinh-ta/gamification]", {
     eventType,
     week,
@@ -30,6 +30,26 @@ function logGamificationResult(eventType: "ANSWER_RESULT" | "WEEK_COMPLETE", wee
     level: result.level,
     badgesAwarded: result.newBadges.length,
   });
+}
+
+export async function recordHintEvent(event: HintEvent): Promise<GamificationResult> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db.rpc("chinh_ta_record_hint", {
+    p_event_id: event.eventId,
+    p_student_code: event.studentCode,
+    p_display_name: event.displayName ?? "",
+    p_class_name: event.className ?? "",
+    p_week: event.week,
+    p_question_id: event.questionId,
+    p_topic: event.topic,
+    p_hint_level: event.hintLevel,
+    p_difficulty: event.difficulty,
+    p_occurred_at: event.occurredAt ?? new Date().toISOString(),
+  });
+  if (error) throw databaseError(`record hint: ${error.message}`);
+  const result = asGamificationResult(data);
+  logGamificationResult("HINT_USED", event.week, result);
+  return result;
 }
 
 export async function recordAnswerEvent(event: AnswerEvent): Promise<GamificationResult> {

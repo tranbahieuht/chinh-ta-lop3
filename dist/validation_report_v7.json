@@ -1,0 +1,209 @@
+{
+  "zip": "C:\\Users\\Admin\\Documents\\AI chatbot\\fraction-ai-tutor\\dist\\ChinhTaLop3_Gamified_DialogflowES_v7.zip",
+  "zipBytes": 1672261,
+  "intentCount": 995,
+  "entityCount": 9,
+  "webhookQA": {
+    "webhookEnabledIntents": 848,
+    "webhookFlagErrors": [],
+    "webhookPayloadErrors": []
+  },
+  "actionQA": {
+    "actionFieldsScanned": 995,
+    "actionFieldsChangedFromV5": 0,
+    "actionFieldsAddedInV6": 0,
+    "emptyActionFields": 991,
+    "nonemptyActions": [
+      "ai_analyze_mistake",
+      "ai_create_similar_question",
+      "ai_explain",
+      "ai_feedback"
+    ],
+    "invalidActionsWithWhitespace": 0,
+    "invalidActionsWithUnsafeFormat": 0
+  },
+  "contentQA": {
+    "weeksChecked": 35,
+    "questionsChecked": 315,
+    "supportQuestionsChanged": 105,
+    "capitalizationQuestionsConverted": 32,
+    "capitalizationCorrectIntentsScanned": 44,
+    "lowercaseIncorrectPhrasesInCorrectIntents": 0,
+    "legacyAnswerCopyPrompts": 0,
+    "ambiguousPlaceholders": 0
+  },
+  "checks": {
+    "zip_integrity": true,
+    "root_agent_json": true,
+    "root_package_json": true,
+    "no_wrapper_directory": true,
+    "unique_intent_ids": true,
+    "unique_entity_ids": true,
+    "unique_all_uuids": true,
+    "all_intents_have_usersays": true,
+    "all_entities_have_entries": true,
+    "all_35_week_starts": true,
+    "all_35_week_completions": true,
+    "completion_bonus_payloads": true,
+    "three_hint_levels_all_weeks": true,
+    "adaptive_branches_all_weeks": true,
+    "ai_ready_intents": true,
+    "required_entities": true,
+    "intent_under_1500": true,
+    "intent_preferred_under_1100": true,
+    "no_manual_result_xp_complete_steps": true,
+    "all_intent_responses_have_action_field": true,
+    "invalid_actions_with_whitespace_zero": true,
+    "all_nonempty_actions_safe_format": true,
+    "only_expected_webhook_ready_actions_nonempty": true,
+    "selective_webhook_flags_valid": true,
+    "webhook_payload_schema_v3_valid": true,
+    "webhook_static_fallbacks_retained": true,
+    "content_all_35_weeks": true,
+    "nine_questions_each_week": true,
+    "no_legacy_answer_copy_prompts": true,
+    "no_revealed_rewrite_answers": true,
+    "single_unambiguous_placeholders": true,
+    "unique_question_ids": true,
+    "every_question_has_accepted_answers": true,
+    "H_105_support_questions_checked": true,
+    "H_support_questions_distinct": true,
+    "F_week17_form_content": true,
+    "G_capitalization_weeks_21_29_32_34": true,
+    "capitalization_32_questions_multiple_choice": true,
+    "capitalization_no_lowercase_correct_phrase": true,
+    "capitalization_no_wrong_option_in_correct_intent": true,
+    "correct_intents_have_no_sys_any": true,
+    "raw_context_placeholders_in_responses_zero": true,
+    "correct_auto_next_payloads_are_direct": true,
+    "language_vi": true,
+    "timezone_hcm": true,
+    "v6_architecture_preserved": true,
+    "v6_pedagogical_content_preserved": true,
+    "A_week01_fast_auto_complete": true,
+    "B_week01_hint_to_support_return": true,
+    "C_week05_multiple_mistakes_remedial": true,
+    "D_week18_boss_auto_complete": true,
+    "E_week35_final_boss_auto_complete": true,
+    "F_week17_form_auto_complete": true,
+    "G_week21_capitalization_flow": true
+  },
+  "flows": {
+    "A_week01_fast_auto_complete": {
+      "passed": true,
+      "steps": [
+        "W01_Start",
+        "W01_Understood_Yes",
+        "W01_Q01_Correct",
+        "W01_Q02_Correct",
+        "W01_Q03_Correct",
+        "W01_Q06_Correct",
+        "W01_Q08_Correct",
+        "W01_Q09_Correct"
+      ],
+      "finalContexts": [
+        "week01_complete"
+      ]
+    },
+    "B_week01_hint_to_support_return": {
+      "passed": true,
+      "steps": [
+        "W01_Start",
+        "W01_Understood_Yes",
+        "W01_Wrong_First",
+        "W01_Hint_1",
+        "W01_Wrong_Again",
+        "W01_Hint_2",
+        "W01_Q01_Correct_To_Support",
+        "W01_Support_Q02_Correct"
+      ],
+      "finalContexts": [
+        "week01_active",
+        "week01_question02"
+      ]
+    },
+    "C_week05_multiple_mistakes_remedial": {
+      "passed": true,
+      "steps": [
+        "W05_Start",
+        "W05_Understood_Yes",
+        "W05_Q01_Correct",
+        "W05_Q02_Correct",
+        "W05_Wrong_First",
+        "W05_Wrong_Again",
+        "W05_Q03_Correct_To_Support",
+        "W05_Support_Q04_Correct"
+      ],
+      "finalContexts": [
+        "week05_active",
+        "week05_question04"
+      ]
+    },
+    "D_week18_boss_auto_complete": {
+      "passed": true,
+      "steps": [
+        "W18_Start",
+        "W18_Understood_Yes",
+        "W18_Q01_Correct",
+        "W18_Q02_Correct",
+        "W18_Q03_Correct",
+        "W18_Q06_Correct",
+        "W18_Q08_Correct",
+        "W18_Q09_Correct"
+      ],
+      "finalContexts": [
+        "week18_complete"
+      ]
+    },
+    "E_week35_final_boss_auto_complete": {
+      "passed": true,
+      "steps": [
+        "W35_Start",
+        "W35_Understood_Yes",
+        "W35_Q01_Correct",
+        "W35_Q02_Correct",
+        "W35_Q03_Correct",
+        "W35_Q06_Correct",
+        "W35_Q08_Correct",
+        "W35_Q09_Correct"
+      ],
+      "finalContexts": [
+        "week35_complete"
+      ]
+    },
+    "F_week17_form_auto_complete": {
+      "passed": true,
+      "steps": [
+        "W17_Start",
+        "W17_Understood_Yes",
+        "W17_Q01_Correct",
+        "W17_Q02_Correct",
+        "W17_Q03_Correct",
+        "W17_Q06_Correct",
+        "W17_Q08_Correct",
+        "W17_Q09_Correct"
+      ],
+      "finalContexts": [
+        "week17_complete"
+      ]
+    },
+    "G_week21_capitalization_flow": {
+      "passed": true,
+      "steps": [
+        "W21_Start",
+        "W21_Understood_Yes",
+        "W21_Q01_Correct"
+      ],
+      "finalContexts": [
+        "week21_active",
+        "week21_question02"
+      ]
+    },
+    "H_all_remedial_questions_distinct": {
+      "passed": true,
+      "supportQuestionsChecked": 105,
+      "rule": "support prompt and accepted answer differ from the failed main question"
+    }
+  },
+  "errors": []
+}

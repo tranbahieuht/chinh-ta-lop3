@@ -13,6 +13,8 @@
     "test:dialogflow-client": "node --conditions=react-server --test --experimental-strip-types tests/dialogflow-client.test.ts",
     "test:dialogflow-webhook": "node --conditions=react-server --experimental-strip-types tests/dialogflow-webhook-e2e.test.ts",
     "test:webhook": "node --experimental-strip-types tests/dialogflow-webhook.test.ts",
+    "test:answers": "node --experimental-strip-types tests/answer-validator.test.ts",
+    "test:learning-flow": "node --experimental-strip-types tests/learning-flow.integration.test.ts",
     "test:ai": "node --conditions=react-server --experimental-strip-types tests/spelling-ai.test.ts",
     "test:gamification": "node --experimental-strip-types tests/gamification.test.ts",
     "test:frontend": "node --test --experimental-strip-types tests/spelling-frontend.test.ts",

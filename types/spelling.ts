@@ -68,11 +68,20 @@ export type StudentProgress = {
 };
 
 export type GamePayload = {
+  studentCode?: string;
+  week?: number;
+  questionId?: string;
+  topic?: string;
   xpEarned?: number;
+  weekXP?: number;
   totalXP?: number;
   level?: number;
   streak?: number;
   mastery?: number;
+  correctCount?: number;
+  wrongCount?: number;
+  hintsUsed?: number;
+  score?: number;
   newBadges?: string[];
   duplicate?: boolean;
 };
@@ -110,11 +119,13 @@ export type TeacherSummary = {
 
 export type ChatReply = {
   success: boolean;
+  text?: string;
   message?: string;
   quickReplies?: string[];
   suggestions?: string[];
   payloads?: unknown[];
   game?: GamePayload;
+  progressChanged?: boolean;
   contexts?: unknown[];
   error?: string;
   diagnostic?: string;

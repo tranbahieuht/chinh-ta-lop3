@@ -28,6 +28,19 @@ export type WeekCompleteEvent = {
   occurredAt?: string;
 };
 
+export type HintEvent = {
+  eventId: string;
+  studentCode: string;
+  displayName?: string;
+  className?: string;
+  week: number;
+  questionId: string;
+  topic: string;
+  hintLevel: number;
+  difficulty: Difficulty;
+  occurredAt?: string;
+};
+
 export type GamificationResult = {
   success: true;
   duplicate: boolean;
@@ -39,5 +52,10 @@ export type GamificationResult = {
   mastery: number;
   streak: number;
   newBadges: string[];
+  week?: number;
+  weekXP?: number;
+  score?: number;
+  correctCount?: number;
+  wrongCount?: number;
+  hintsUsed?: number;
 };
-
