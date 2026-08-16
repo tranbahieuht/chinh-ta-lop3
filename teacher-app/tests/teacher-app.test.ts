@@ -61,3 +61,13 @@ test("responsive layouts cover tablet and mobile widths", () => {
   assert.match(css, /@media \(max-width: 520px\)/);
   assert.match(css, /td::before \{ content: attr\(data-label\)/);
 });
+
+test("standalone CSS config does not inherit parent Tailwind", () => {
+  const css = source("app/globals.css");
+  const postcss = source("postcss.config.mjs");
+  const packageJson = JSON.parse(source("package.json")) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+  assert.doesNotMatch(css, /@import\s+["']tailwindcss|@tailwind|@apply|@theme|@utility/);
+  assert.match(postcss, /plugins:\s*\{\}/);
+  assert.equal(packageJson.dependencies?.tailwindcss ?? packageJson.devDependencies?.tailwindcss, undefined);
+  assert.equal(packageJson.dependencies?.["@tailwindcss/postcss"] ?? packageJson.devDependencies?.["@tailwindcss/postcss"], undefined);
+});

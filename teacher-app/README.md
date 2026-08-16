@@ -2,6 +2,8 @@
 
 Web giáo viên độc lập, không đăng nhập và chỉ đọc dữ liệu học tập trong Supabase hiện tại.
 
+Giao diện dùng CSS thuần trong `app/globals.css`, không dùng Tailwind. File `postcss.config.mjs` cục bộ ngăn build standalone kế thừa cấu hình Tailwind của student app ở thư mục cha.
+
 ## Chạy local
 
 ```bash
